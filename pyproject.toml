@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "chromatica"
+version = "0.0.0"
+description = "Chromatica is CNN for colorization photos"
+authors = ["snail <snail1704@gmail.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+torch = "^2.5"
+numpy = "<=2.0"
+datasets = "~2.19"
+scikit-image = "~0.23"
+
+[tool.poetry.scripts]
+train = ""
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+extend-select = ["E501"]
+task-tags = ["HACK", "FIXME", "TODO"]
