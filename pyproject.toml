@@ -4,7 +4,6 @@ version = "0.0.0"
 description = "Chromatica is CNN for colorization photos"
 authors = ["snail <snail1704@gmail.com>"]
 readme = "README.md"
-package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -14,7 +13,9 @@ datasets = "~2.19"
 scikit-image = "~0.23"
 
 [tool.poetry.scripts]
-train = ""
+train = "chromatica.train:run"
+# test = ...
+# build = ...
 
 [build-system]
 requires = ["poetry-core"]
