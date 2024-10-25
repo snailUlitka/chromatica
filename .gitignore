@@ -1,0 +1,10 @@
+# IDEs
+.vscode
+.idea
+pyrightconfig.json
+
+# Venv
+.venv
+venv
+
+
