@@ -12,6 +12,9 @@ numpy = "<=2.0"
 datasets = "~2.19"
 scikit-image = "~0.23"
 
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^4.0.1"
+
 [tool.poetry.scripts]
 train = "chromatica.train:run"
 # test = ...
