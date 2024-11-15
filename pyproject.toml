@@ -29,5 +29,25 @@ build-backend = "poetry.core.masonry.api"
 line-length = 79
 
 [tool.ruff.lint]
-extend-select = ["E501"]
+select = ["ALL"]
+ignore = [
+  "ANN",
+  "G004",
+  "D401",
+  "RET504",
+  "ISC001",
+]
 task-tags = ["HACK", "FIXME", "TODO"]
+
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
