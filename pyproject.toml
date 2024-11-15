@@ -8,15 +8,17 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.12"
 torch = "^2.5"
+torchvision = "^0.20.1"
 numpy = "<=2.0"
-datasets = "~2.19"
 scikit-image = "~0.23"
 clearml = "^1.16"
+tqdm = "^4.67.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
 
 [tool.poetry.scripts]
+dataset_prepare = "chromatica.dataset:prepare"
 train = "chromatica.train:run"
 # test = ...
 # build = ...
