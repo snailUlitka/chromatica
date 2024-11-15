@@ -10,3 +10,5 @@ venv
 # Cache
 __pycache__
 
+# Dataset's data
+.data
