@@ -8,7 +8,7 @@ from skimage.color import rgb2lab
 from torch.utils.data import DataLoader
 from torchvision.datasets.food101 import Food101
 from torchvision.transforms.v2 import RGB, Compose, Resize, ToDtype, ToImage
-from tqdm import tqdm
+from tqdm.contrib import tenumerate
 
 DATASET_FOLDER = ".data/"
 NEW_DATASET_FOLDER = DATASET_FOLDER + "food101-colorization/"
@@ -77,10 +77,9 @@ def _preprocess_dataset(train: Food101, test: Food101) -> None:
         class_name = dataset.classes[next(iter(loader))[1]]
         exists_paths = set()
 
-        for idx, (x, y) in tqdm(
-            enumerate(loader),
+        for idx, (x, y) in tenumerate(
+            loader,
             desc=f"{class_name[0].upper()}{class_name[1:]}",
-            ascii=True,
         ):
             path_with_cls = f"{path}{class_name}/"
             if path_with_cls not in exists_paths:
