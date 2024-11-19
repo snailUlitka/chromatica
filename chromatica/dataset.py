@@ -1,5 +1,8 @@
 """Function(s) for load and prepare dataset."""
 
+import shutil
+from collections import defaultdict
+
 import numpy as np
 import torch
 from clearml import Dataset
@@ -8,7 +11,7 @@ from skimage.color import rgb2lab
 from torch.utils.data import DataLoader
 from torchvision.datasets.food101 import Food101
 from torchvision.transforms.v2 import RGB, Compose, Resize, ToDtype, ToImage
-from tqdm.contrib import tenumerate
+from tqdm import tqdm
 
 DATASET_FOLDER = ".data/"
 NEW_DATASET_FOLDER = DATASET_FOLDER + "food101-colorization/"
@@ -46,7 +49,9 @@ def prepare() -> None:
 
     _preprocess_dataset(train, test)
 
-    # WARN: Work in progress, doesn't execute
+    shutil.rmtree(DATASET_FOLDER + "food-101/")
+
+    # WARN: WIP, doesn't execute this
     dataset = Dataset.create(
         dataset_name="food101-colorization",
         dataset_project="Chromatica",
@@ -66,32 +71,35 @@ def prepare() -> None:
 def _preprocess_dataset(train: Food101, test: Food101) -> None:
     for (
         dataset,
-        path,
+        split,
     ) in (
-        (train, NEW_DATASET_FOLDER + "train/"),
-        (test, NEW_DATASET_FOLDER + "test/"),
+        (train, "train"),
+        (test, "test"),
     ):
         loader = DataLoader(dataset)
+        path = NEW_DATASET_FOLDER + f"{split}/"
+
         Path(path).mkdir()
 
-        class_name = dataset.classes[next(iter(loader))[1]]
         exists_paths = set()
+        idx_by_class = defaultdict(int)
 
-        for idx, (x, y) in tenumerate(
-            loader,
-            desc=f"{class_name[0].upper()}{class_name[1:]}",
-        ):
+        for x, y in tqdm(loader, desc=split):
+            class_name = dataset.classes[y.item()]
             path_with_cls = f"{path}{class_name}/"
+
             if path_with_cls not in exists_paths:
                 Path(path_with_cls).mkdir()
                 exists_paths.add(path_with_cls)
 
-            class_name = dataset.classes[y.item()]
+            item = torch.stack((torch.Tensor(_rgb2lab(x[0])), x[0]))
 
             torch.save(
-                _rgb2lab(x[0]),
-                path_with_cls + f"{y.item()}_{idx}.pt",
+                item,
+                path_with_cls + f"{y.item()}_{idx_by_class[y.item()]}.pt",
             )
+
+            idx_by_class[y.item()] += 1
 
 
 def _rgb2lab(tensor: torch.Tensor) -> np.ndarray:
