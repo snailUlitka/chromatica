@@ -13,15 +13,13 @@ numpy = "<=2.0"
 scikit-image = "~0.23"
 clearml = "^1.16"
 tqdm = "^4.67.0"
+pydantic = "^2.10.5"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"
 
 [tool.poetry.scripts]
-dataset_prepare = "chromatica.dataset:prepare"
-train = "chromatica.train:run"
-# test = ...
-# build = ...
+dataset_create = "chromatica.dataset:create"
 
 [build-system]
 requires = ["poetry-core"]
@@ -29,6 +27,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 79
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -38,6 +37,7 @@ ignore = [
   "D401",
   "RET504",
   "ISC001",
+  "S101",
 ]
 task-tags = ["HACK", "FIXME", "TODO"]
 
