@@ -19,7 +19,7 @@ pydantic = "^2.10.5"
 pre-commit = "^4.0.1"
 
 [tool.poetry.scripts]
-dataset_create = "chromatica.dataset:create"
+dataset_create = "chromatica.cli.dataset:create"
 
 [build-system]
 requires = ["poetry-core"]
@@ -38,6 +38,8 @@ ignore = [
   "RET504",
   "ISC001",
   "S101",
+  "TD002",
+  "FIX",
 ]
 task-tags = ["HACK", "FIXME", "TODO"]
 
