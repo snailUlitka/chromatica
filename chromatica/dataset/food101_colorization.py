@@ -6,6 +6,7 @@ Original dataset: https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/
 
 import json
 
+import numpy as np
 import torch
 from clearml import Dataset
 from pathlib2 import Path
@@ -19,7 +20,7 @@ from torchvision.transforms.v2 import (
     ToDtype,
 )
 
-from chromatica.dataset.transform import RGB2LAB
+from chromatica.dataset.transform import LAB2RGB, RGB2LAB
 from chromatica.models.dataset import DatasetMetadata, DatasetSplitType
 
 OLD_DATASET_NAME = "food-101"
@@ -29,9 +30,9 @@ NEW_DATASET_NAME = "food101-colorization"
 class Food101Colorization(torch.utils.data.Dataset):
     """Dataset for colorization task based on Food101."""
 
-    def __init__(self, *, train: DatasetSplitType):
+    def __init__(self, *, split: DatasetSplitType):
         self._folder_path = None
-        self._split_type = train
+        self._split_type = split
 
     def _load(self) -> None:
         dataset = Dataset.get(
@@ -159,3 +160,29 @@ class Food101Colorization(torch.utils.data.Dataset):
             f"{self._folder_path}/{NEW_DATASET_NAME}/{self._split_type.value}/"
             f"{class_name}/{class_name}_{index_in_class}.jpg",
         )
+
+    @staticmethod
+    def image_from_lab_tensor(tensor: torch.Tensor) -> Image.Image:
+        """
+        Get Pillow `Image` from `torch.Tensor` with image in LAB colorspace.
+
+        Parameters
+        ----------
+        tensor : torch.Tensor
+            Tensor with image in LAB colorspace, should be `torch.float32` and
+            scaled into:
+                - [0, 1] for L channel
+                - [-1, 1] for ab channels
+
+        Returns
+        -------
+        Image
+            Pillow image, can be used to save in memory.
+        """
+        rgb_tensor = LAB2RGB()(tensor)
+
+        rgb_tensor = rgb_tensor.permute(1, 2, 0).detach().numpy()
+
+        rgb_tensor = (rgb_tensor * 255).astype(np.uint8)
+
+        return Image.fromarray(rgb_tensor)
