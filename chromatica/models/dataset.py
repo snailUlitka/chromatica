@@ -21,6 +21,21 @@ class DatasetMetadata(BaseModel):
     )
 
 
+class CreateDatasetConfig(BaseModel):
+    """Config for dataset create method."""
+
+    dataset_name: str = Field(..., description="Name for ClearML")
+    dataset_version: str = Field(
+        ...,
+        description="Version for ClearML",
+        examples=["1.0.1", "0.0.0", "101.0.0"],
+    )
+    dataset_description: str | None = Field(
+        None,
+        description="Description for ClearML",
+    )
+
+
 class DatasetSplitType(str, Enum):
     """Parameter for selecting the data to use from the dataset."""
 
