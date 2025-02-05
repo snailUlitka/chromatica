@@ -9,7 +9,7 @@ from pathlib2 import Path
 from torchvision.datasets.food101 import Food101
 from tqdm import tqdm
 
-from chromatica.dataset.food101_colorization import (
+from chromatica.core.dataset.food101_colorization import (
     NEW_DATASET_NAME,
     OLD_DATASET_NAME,
 )

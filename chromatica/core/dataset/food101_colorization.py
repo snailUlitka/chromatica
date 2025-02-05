@@ -20,7 +20,7 @@ from torchvision.transforms.v2 import (
     ToDtype,
 )
 
-from chromatica.dataset.transform import LAB2RGB, RGB2LAB
+from chromatica.core.dataset.transform import LAB2RGB, RGB2LAB
 from chromatica.models.dataset import DatasetMetadata, DatasetSplitType
 
 OLD_DATASET_NAME = "food-101"

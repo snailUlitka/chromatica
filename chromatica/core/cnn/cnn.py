@@ -3,7 +3,7 @@
 import torch
 from torch import nn
 
-from chromatica.cnn.layers import (
+from chromatica.core.cnn.layers import (
     ConvLayer,
     IncreaseResolutionLayer,
     ReduceResolutionLayer,
