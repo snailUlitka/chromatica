@@ -61,3 +61,30 @@ class ReduceResolutionLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Transforms and reduces the resolution tensor with convolution."""
         return nn.ReLU()(self.bn(self.conv(x)))
+
+
+class IncreaseResolutionLayer(nn.Module):
+    """
+    Layer with convolution with increase resolution for use in CNN.
+
+    `ReduceResolutionLayer` use convolution fucntion from `nn.Conv2d`,
+    batch normalization from `nn.BatchNorm2d` and ReLU as activation function.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+
+        self.conv = nn.ConvTranspose2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1,
+        )
+
+        self.bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Transforms and increases the resolution tensor with convolution."""
+        return nn.ReLU()(self.bn(self.conv(x)))
