@@ -143,9 +143,7 @@ class Food101Colorization(torch.utils.data.Dataset):
         test_len = self._metadata.test_len
         classes_count = self._metadata.classes_count
 
-        class_name = self._metadata.classes_names[
-            index // (train_len // classes_count)
-        ]
+        class_name = self._metadata.classes_names[index // (train_len // classes_count)]
 
         match self._split_type:
             case DatasetSplitType.TRAIN:
