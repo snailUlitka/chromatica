@@ -1,32 +1,33 @@
-[tool.poetry]
+[project]
 name = "chromatica"
 version = "0.0.0"
 description = "Chromatica is CNN for colorization photos"
-authors = ["snail <snail1704@gmail.com>"]
+authors = [
+    { name = "Mikhail Polevoda", email = "snail1704@gmail.com" }
+]
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.12"
-torch = "^2.5"
-torchvision = "^0.20.1"
-numpy = "<=2.0"
-scikit-image = "~0.23"
-clearml = "^1.16"
-tqdm = "^4.67.0"
-pydantic = "^2.10.5"
+requires-python = "~=3.12"
+dependencies = [
+    "clearml>=1.18.0",
+    "fastapi[standard]>=0.115.12",
+    "numpy>=2.2.6",
+    "pydantic>=2.11.4",
+    "scikit-image>=0.25.2",
+    "torch>=2.7.0",
+    "torchvision>=0.22.0",
+    "tqdm>=4.67.1",
+]
 
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^4.0.1"
-
-[tool.poetry.scripts]
+[project.scripts]
 dataset_create = "chromatica.cli.dataset:create"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
-line-length = 79
+line-length = 88
 target-version = "py312"
 
 [tool.ruff.lint]
@@ -40,6 +41,7 @@ ignore = [
   "S101",
   "TD002",
   "FIX",
+  "COM812",
 ]
 task-tags = ["HACK", "FIXME", "TODO"]
 
@@ -55,3 +57,13 @@ indent-style = "space"
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+exclude = [".venv"]

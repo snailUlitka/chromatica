@@ -1,16 +1,46 @@
+default_stages: [pre-commit, pre-push]
+fail_fast: true
+
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
     hooks:
-    -   id: trailing-whitespace
-    -   id: check-added-large-files
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.6.9
-  hooks:
-    - id: ruff
-    - id: ruff-format
--   repo: https://github.com/python-poetry/poetry
-    rev: '1.8.2'
+      - id: nbstripout
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
     hooks:
-    -   id: poetry-check
-    -   id: poetry-lock
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+        exclude: LICENSE
+      - id: trailing-whitespace
+        exclude: ^exports/
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-merge-conflict
+      - id: check-ast
+      - id: check-executables-have-shebangs
+      - id: debug-statements
+      - id: check-added-large-files
+        args: ["--maxkb=100"]
+        exclude: |
+          (?x)^(
+            ^exports/|
+            ^uv.lock
+          )$
+      - id: check-docstring-first
+      - id: detect-private-key
+      - id: check-case-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+      - id: ruff-format
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.7.6
+    hooks:
+      - id: uv-lock
