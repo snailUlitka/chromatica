@@ -1,11 +1,11 @@
 # IDEs
 .vscode
 .idea
-pyrightconfig.json
 
 # Venv
 .venv
 venv
+.python-version
 
 # Cache
 __pycache__
