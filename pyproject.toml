@@ -67,3 +67,4 @@ dev = [
 venvPath = "."
 venv = ".venv"
 exclude = [".venv"]
+pythonVersion = "3.12"
