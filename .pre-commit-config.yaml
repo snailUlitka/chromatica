@@ -35,12 +35,21 @@ repos:
       - id: check-case-conflict
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.11.11
     hooks:
       - id: ruff
       - id: ruff-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.7.6
+    rev: 0.7.8
     hooks:
       - id: uv-lock
+
+  - repo: local
+    hooks:
+      - id: git-commit-prefix
+        name: git-commit-prefix
+        entry: uv run --active scripts/github_commit_prefix.py
+        language: python
+        stages: [prepare-commit-msg]
+        description: Searches the branch name for something looking like an issue name template and prepends the commit message with it
