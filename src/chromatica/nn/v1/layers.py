@@ -1,12 +1,14 @@
-"""Module with layers for CNN, each include transform and activation."""
+"""Module with layers for U-Net like CNN without skip-connections."""
 
 import torch
 from torch import nn
 
 
+# TODO: Tanh is useless, because ab-channels in CIE-Lab is in [0, 1]
+# https://github.com/snailUlitka/chromatica/issues/19
 class ConvLayer(nn.Module):
     """
-    Layer with convolution without reduce resolution for use in CNN.
+    Layer with convolution without reduce resolution.
 
     `ConvLayer` use convolution fucntion from `nn.Conv2d`,
     batch normalization from `nn.BatchNorm2d` and provided activation function.

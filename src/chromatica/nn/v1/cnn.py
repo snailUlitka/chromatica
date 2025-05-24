@@ -1,9 +1,9 @@
-"""Module with CNN for colorization task."""
+"""Class with U-Net like CNN without skip-connections."""
 
 import torch
 from torch import nn
 
-from chromatica.cnn.layers import (
+from chromatica.nn.v1.layers import (
     ConvLayer,
     IncreaseResolutionLayer,
     ReduceResolutionLayer,
@@ -11,7 +11,7 @@ from chromatica.cnn.layers import (
 
 
 class CNN(nn.Module):
-    """Implementation of Convolution Neural Network for colorization task."""
+    """U-Net like CNN without skip-connections."""
 
     def __init__(self):
         super().__init__()
