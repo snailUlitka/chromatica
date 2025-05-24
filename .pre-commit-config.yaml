@@ -44,3 +44,12 @@ repos:
     rev: 0.7.6
     hooks:
       - id: uv-lock
+
+  - repo: local
+    hooks:
+      - id: git-commit-prefix
+        name: git-commit-prefix
+        entry: uv run python scripts/github_commit_prefix.py
+        language: python
+        stages: [prepare-commit-msg]
+        description: Searches the branch name for something looking like an issue name template and prepends the commit message with it
