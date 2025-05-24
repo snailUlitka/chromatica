@@ -57,7 +57,7 @@ def main() -> int:
         with commit_msg_filepath.open("r", encoding="utf-8") as f:
             content = f.readlines()
 
-            if all(line.startswith("#") for line in content if line.strip() != ""):
+            if not all(line.startswith("#") for line in content if line.strip() != ""):
                 return 0
     except Exception:
         logger.exception("Failed to update commit message")

@@ -11,6 +11,7 @@ requires-python = "~=3.12"
 dependencies = [
     "clearml>=1.18.0",
     "fastapi[standard]>=0.115.12",
+    "matplotlib>=3.10.3",
     "numpy>=2.2.6",
     "pydantic>=2.11.4",
     "scikit-image>=0.25.2",
@@ -30,6 +31,22 @@ build-backend = "hatchling.build"
 line-length = 88
 target-version = "py312"
 
+exclude = [
+    ".git",
+    ".git-rewrite",
+    ".jj",
+    ".ipynb_checkpoints",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    ".vscode",
+    "__pypackages__",
+    "build",
+    "site-packages",
+    "reports",
+]
+
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
@@ -48,6 +65,9 @@ task-tags = ["HACK", "FIXME", "TODO"]
 fixable = ["ALL"]
 unfixable = []
 
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*" = ["T201", "B018"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
@@ -62,6 +82,13 @@ docstring-code-line-length = "dynamic"
 dev = [
     "pre-commit>=4.2.0",
 ]
+notebook = [
+    "ipywidgets>=8.1.7",
+    "jupyterlab>=4.4.2",
+]
+
+[tool.uv]
+default-groups = "all"
 
 [tool.pyright]
 venvPath = "."
