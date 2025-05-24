@@ -1,1 +1,1 @@
-"""Module with layers and functions for CNN needs."""
+"""Different versions submodules for NN staff."""
