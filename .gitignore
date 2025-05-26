@@ -9,6 +9,7 @@ venv
 
 # Cache
 __pycache__
+.ipynb_checkpoints
 
 # Dataset's data
 .data
