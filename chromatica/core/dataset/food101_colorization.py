@@ -30,7 +30,7 @@ NEW_DATASET_NAME = "food101-colorization"
 class Food101Colorization(torch.utils.data.Dataset):
     """Dataset for colorization task based on Food101."""
 
-    def __init__(self, *, split: DatasetSplitType):
+    def __init__(self, *, split: DatasetSplitType = DatasetSplitType.TRAIN):
         self._folder_path = None
         self._split_type = split
 
