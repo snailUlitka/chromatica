@@ -49,7 +49,7 @@ class CNN(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Colorize tensor with image in LAB colorspace.
 
-        Transform tensor with (1, h, w) shape to (3, h, w).
+        Transform tensor with (1, h, w) shape to (2, h, w).
         Input and output tensors are images in LAB colorspace.
         """
         return self.nn(x)
