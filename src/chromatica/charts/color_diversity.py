@@ -181,7 +181,7 @@ class _TopColors(BaseModel):
         return float(100.0 - self.percents.sum().item())
 
 
-def compute_top_colors_modes(
+def compute_top_colors_modes(  # noqa: C901, PLR0912, PLR0913, PLR0915
     loader: Iterable[tuple[Any, torch.Tensor, Any]],
     /,
     topk: int = 16,
@@ -256,13 +256,15 @@ def compute_top_colors_modes(
     datasets.
     """
     if not (0.0 < sample_fraction <= 1.0):
-        raise ValueError("`sample_fraction` must be in (0, 1].")
+        msg = "`sample_fraction` must be in (0, 1]."
+        raise ValueError(msg)
     if topk < 1:
-        raise ValueError("`topk` must be >= 1.")
+        msg = "`topk` must be >= 1."
+        raise ValueError(msg)
     a_min, a_max = ab_minmax
     b_min, b_max = ab_minmax
-    nb_a = int(math.ceil((a_max - a_min) / bin_size))
-    nb_b = int(math.ceil((b_max - b_min) / bin_size))
+    nb_a = math.ceil((a_max - a_min) / bin_size)
+    nb_b = math.ceil((b_max - b_min) / bin_size)
     n_bins = nb_a * nb_b
 
     counts: torch.Tensor | None = None
@@ -274,9 +276,9 @@ def compute_top_colors_modes(
         for *_, ab, _ in loader:
             ab_flat = ab.reshape(2, -1).T
             if sample_fraction < 1.0:
-                N = ab_flat.shape[0]
-                keep = max(1, int(N * sample_fraction))
-                idx = torch.randint(N, (keep,), generator=rng, device=ab_flat.device)
+                n = ab_flat.shape[0]
+                keep = max(1, int(n * sample_fraction))
+                idx = torch.randint(n, (keep,), generator=rng, device=ab_flat.device)
                 ab_flat = ab_flat[idx]
             ab_flat = ab_flat * input_scale
 
@@ -313,11 +315,13 @@ def compute_top_colors_modes(
             total_count += lin.numel()
 
     if counts is None or sum_a is None or sum_b is None or total_count == 0:
-        raise RuntimeError("No data found in loader after chroma filtering.")
+        msg = "No data found in loader after chroma filtering."
+        raise RuntimeError(msg)
 
     nz = (counts > 0).nonzero(as_tuple=False).squeeze(1)
     if nz.numel() == 0:
-        raise RuntimeError("All bins are empty after processing.")
+        msg = "All bins are empty after processing."
+        raise RuntimeError(msg)
 
     cnt = counts[nz]
     mean_a = sum_a[nz] / cnt.to(torch.float32)
@@ -366,7 +370,7 @@ def compute_top_colors_modes(
     )
 
 
-def plot_top_colors_pie(
+def plot_top_colors_pie(  # noqa: D103, PLR0913
     top: _TopColors,
     /,
     *,
@@ -376,14 +380,14 @@ def plot_top_colors_pie(
     other_label: str = "Other colors",
     min_show_other: float = 0.05,
 ) -> tuple[Figure, Axes]:
-    K = top.centers_ab.shape[0]
-    lab = np.empty((K, 3), dtype=np.float32)
+    k = top.centers_ab.shape[0]
+    lab = np.empty((k, 3), dtype=np.float32)
     lab[:, 0] = l_value
     lab[:, 1:] = top.centers_ab.numpy()
     rgb = lab2rgb(lab[None])[0]
     sizes = top.percents.numpy().tolist()
     colors = rgb.tolist()
-    labels = [""] * K
+    labels = [""] * k
     remainder = top.remainder_percent
     if include_other and remainder >= min_show_other:
         sizes.append(remainder)
@@ -407,7 +411,7 @@ def plot_top_colors_pie(
     return fig, ax
 
 
-def plot_top_colors_palette(
+def plot_top_colors_palette(  # noqa: D103, PLR0913
     top: _TopColors,
     /,
     *,
@@ -418,29 +422,29 @@ def plot_top_colors_palette(
     spacing_px: int = 4,
     fmt: str = "{:.1f}%",
 ) -> tuple[Figure, Axes]:
-    K = top.centers_ab.shape[0]
-    lab = np.empty((K, 3), dtype=np.float32)
+    k = top.centers_ab.shape[0]
+    lab = np.empty((k, 3), dtype=np.float32)
     lab[:, 0] = l_value
     lab[:, 1:] = top.centers_ab.numpy()
     rgb = lab2rgb(lab[None])[0]
     if cols is None or cols < 1:
-        cols = min(K, 8)
-    rows = int(math.ceil(K / cols))
-    H = rows * tile_px + (rows - 1) * spacing_px if rows > 0 else tile_px
-    W = cols * tile_px + (cols - 1) * spacing_px if cols > 0 else tile_px
-    canvas = np.ones((H, W, 3), dtype=np.float32)
-    for idx in range(K):
+        cols = min(k, 8)
+    rows = math.ceil(k / cols)
+    h = rows * tile_px + (rows - 1) * spacing_px if rows > 0 else tile_px
+    w = cols * tile_px + (cols - 1) * spacing_px if cols > 0 else tile_px
+    canvas = np.ones((h, w, 3), dtype=np.float32)
+    for idx in range(k):
         r = idx // cols
         c = idx % cols
         y0 = r * (tile_px + spacing_px)
         x0 = c * (tile_px + spacing_px)
         canvas[y0 : y0 + tile_px, x0 : x0 + tile_px, :] = rgb[idx]
-    fig, ax = plt.subplots(figsize=(W / 80.0, H / 80.0), dpi=160)
+    fig, ax = plt.subplots(figsize=(w / 80.0, h / 80.0), dpi=160)
     ax.imshow(canvas, interpolation="nearest")
-    ax.set_xticks([]), ax.set_yticks([])
-    ax.set_xlim(0, W), ax.set_ylim(H, 0)
+    _ = ax.set_xticks([]), ax.set_yticks([])
+    _ = ax.set_xlim(0, w), ax.set_ylim(h, 0)
     perc = top.percents.numpy()
-    for idx in range(K):
+    for idx in range(k):
         r = idx // cols
         c = idx % cols
         y0 = r * (tile_px + spacing_px)
@@ -448,8 +452,8 @@ def plot_top_colors_palette(
         cx = x0 + tile_px / 2.0
         cy = y0 + tile_px / 2.0
         col = rgb[idx]
-        Y = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2]
-        text_color = (0.0, 0.0, 0.0) if Y > 0.5 else (1.0, 1.0, 1.0)
+        y = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2]
+        text_color = (0.0, 0.0, 0.0) if y > 0.5 else (1.0, 1.0, 1.0)  # noqa: PLR2004
         ax.text(
             cx,
             cy,
@@ -466,7 +470,7 @@ def plot_top_colors_palette(
     return fig, ax
 
 
-def compute_top_colors_kmeans(
+def compute_top_colors_kmeans(  # noqa: C901, D103, PLR0913, PLR0915
     loader: Iterable[tuple[Any, torch.Tensor, Any]],
     /,
     topk: int = 16,
@@ -482,25 +486,27 @@ def compute_top_colors_kmeans(
     init_centers_ab: torch.Tensor | None = None,
 ) -> _TopColors:
     if not (0.0 < sample_fraction <= 1.0):
-        raise ValueError("`sample_fraction` must be in (0, 1].")
+        msg = "`sample_fraction` must be in (0, 1]."
+        raise ValueError(msg)
     if topk < 1:
-        raise ValueError("`topk` must be >= 1.")
+        msg = "`topk` must be >= 1."
+        raise ValueError(msg)
 
-    def _collect_points() -> tuple[torch.Tensor, int]:
+    def _collect_points() -> tuple[torch.Tensor, int]:  # noqa: C901
         buf: list[torch.Tensor] = []
         kept_total = 0
         with torch.no_grad():
             for *_, ab, _ in loader:
                 x = ab.reshape(2, -1).T
                 if sample_fraction < 1.0:
-                    N = x.shape[0]
-                    keep = max(1, int(N * sample_fraction))
-                    idx = torch.randint(N, (keep,), generator=rng, device=x.device)
+                    n = x.shape[0]
+                    keep = max(1, int(n * sample_fraction))
+                    idx = torch.randint(n, (keep,), generator=rng, device=x.device)
                     x = x[idx]
                 x = x * input_scale
                 if chroma_floor > 0.0:
-                    C = torch.linalg.norm(x, dim=1)
-                    m = chroma_floor <= C
+                    c = torch.linalg.norm(x, dim=1)
+                    m = chroma_floor <= c
                     if not m.any():
                         continue
                     x = x[m]
@@ -524,7 +530,8 @@ def compute_top_colors_kmeans(
                         sel = torch.randint(tmp.shape[0], (max_points,), generator=rng)
                         buf = [tmp[sel]]
         if not buf:
-            raise RuntimeError("No data found in loader after chroma filtering.")
+            msg = "No data found in loader after chroma filtering."
+            raise RuntimeError(msg)
         pts = torch.cat(buf, 0)
         if pts.shape[0] > max_points:
             sel = torch.randint(pts.shape[0], (max_points,), generator=rng)
@@ -532,9 +539,9 @@ def compute_top_colors_kmeans(
         return pts, kept_total
 
     def _kmeans_pp(x: torch.Tensor, k: int) -> torch.Tensor:
-        N = x.shape[0]
+        n = x.shape[0]
         centers = torch.empty(k, 2, dtype=x.dtype)
-        i0 = torch.randint(N, (1,), generator=rng).item()
+        i0 = torch.randint(n, (1,), generator=rng).item()
         centers[0] = x[i0]
         d2 = ((x - centers[0]) ** 2).sum(1)
         for i in range(1, k):
@@ -546,12 +553,12 @@ def compute_top_colors_kmeans(
 
     def _lloyd(x: torch.Tensor, c0: torch.Tensor, iters: int, tol: float):
         c = c0.clone()
-        N, K = x.shape[0], c.shape[0]
+        _, k = x.shape[0], c.shape[0]
         last_shift = float("inf")
         for _ in range(iters):
             dist2 = torch.cdist(x, c, p=2) ** 2
             labels = dist2.argmin(dim=1)
-            counts = torch.bincount(labels, minlength=K).to(torch.int64)
+            counts = torch.bincount(labels, minlength=k).to(torch.int64)
 
             if (counts == 0).any():
                 near = dist2.min(dim=1).values
@@ -561,12 +568,12 @@ def compute_top_colors_kmeans(
 
                 dist2 = torch.cdist(x, c, p=2) ** 2
                 labels = dist2.argmin(dim=1)
-                counts = torch.bincount(labels, minlength=K).to(torch.int64)
+                counts = torch.bincount(labels, minlength=k).to(torch.int64)
 
             new_c = torch.zeros_like(c)
-            for k in range(K):
-                m = labels == k
-                new_c[k] = x[m].mean(dim=0)
+            for k_ in range(k):
+                m = labels == k_
+                new_c[k_] = x[m].mean(dim=0)
             shift = (new_c - c).pow(2).sum().sqrt().item()
             c = new_c
             last_shift = shift
@@ -578,7 +585,7 @@ def compute_top_colors_kmeans(
         counts = torch.bincount(labels, minlength=c.shape[0]).to(torch.int64)
         return c, counts, last_shift
 
-    pts, kept_total = _collect_points()
+    pts, _ = _collect_points()
     if pts.shape[0] < topk:
         uniq = torch.unique(pts, dim=0)
         centers = uniq[:topk]
