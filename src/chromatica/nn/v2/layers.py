@@ -1,0 +1,78 @@
+"""Module with layers for U-Net like CNN with skip-connections."""
+
+import torch
+from torch import nn
+
+
+class ConvLayer(nn.Module):
+    """
+    Layer with convolution without reduce resolution.
+
+    `ConvLayer` use convolution fucntion from `nn.Conv2d`,
+    batch normalization from `nn.BatchNorm2d` and provided activation function.
+
+    The activation can be ReLU or Tanh. Tanh is used for the last layer in CNN.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding="same")
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.act = nn.ReLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Transforms tensor with convolution."""
+        return self.act(self.bn(self.conv(x)))
+
+
+class ReduceResolutionLayer(nn.Module):
+    """
+    Layer with convolution with reduce resolution for use in CNN.
+
+    `ReduceResolutionLayer` use convolution fucntion from `nn.Conv2d`,
+    batch normalization from `nn.BatchNorm2d` and ReLU as activation function.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+        )
+
+        self.bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Transforms and reduces the resolution tensor with convolution."""
+        return nn.ReLU()(self.bn(self.conv(x)))
+
+
+class IncreaseResolutionLayer(nn.Module):
+    """
+    Layer with convolution with increase resolution for use in CNN.
+
+    `ReduceResolutionLayer` use convolution fucntion from `nn.Conv2d`,
+    batch normalization from `nn.BatchNorm2d` and ReLU as activation function.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+
+        self.conv = nn.ConvTranspose2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1,
+        )
+
+        self.bn = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Transforms and increases the resolution tensor with convolution."""
+        return nn.ReLU()(self.bn(self.conv(x)))
