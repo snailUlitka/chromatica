@@ -19,7 +19,7 @@ class BaseCNN(Module, ABC):
         """
         Colorize tensor in CIE-Lab.
 
-        Input:  (N, 1, H, W)  or (1, H, W) для single-sample
-        Output: (N, 2, H, W)  или (2, H, W)
+        Input:  (N, 1, H, W)  or (1, H, W) for a single sample
+        Output: (N, 2, H, W)  or (2, H, W)
         """
         raise NotImplementedError
