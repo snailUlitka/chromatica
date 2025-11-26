@@ -29,7 +29,7 @@ def is_git_in_special_state() -> bool:
 def get_branch_name() -> str | None:
     """Get current branch name, or None if in detached HEAD."""
     try:
-        return subprocess.check_output(  # noqa: S603
+        return subprocess.check_output(
             ["/usr/bin/git", "symbolic-ref", "--short", "HEAD"],
             universal_newlines=True,
             stderr=subprocess.DEVNULL,

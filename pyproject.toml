@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 
-requires-python = "~=3.12"
+requires-python = "~=3.12.0"
 dependencies = [
     "clearml>=1.18.0",
     "fastapi[standard]>=0.115.12",
@@ -65,8 +65,8 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/*" = ["T201"]
-"notebooks/*" = ["T201", "B018"]
+"scripts/*" = ["T201", "S603"]
+"notebooks/*" = ["T201", "B018", "D", "BLE001", "PLR0913", "PTH105", "C901", "PLW2901", "E501", "I001"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"

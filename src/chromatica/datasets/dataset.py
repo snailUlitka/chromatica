@@ -34,7 +34,7 @@ from chromatica.datasets.transform import RGB2LAB
 class ImageDataset(Dataset):
     """Dataset with CIE-Lab images from directory with images."""
 
-    def __init__(self, path_to_dir: Path) -> None:
+    def __init__(self, path_to_dir: Path, device: torch.device | None = None) -> None:
         super().__init__()
         self._path_to_dir = path_to_dir
         self._transform = Compose(
@@ -49,6 +49,7 @@ class ImageDataset(Dataset):
         # TODO: Better logging with loguru
         # https://github.com/snailUlitka/chromatica/issues/23
         self._logger = logging.getLogger()
+        self._device = device or torch.device("cpu")
 
     @cache
     @staticmethod
@@ -121,8 +122,15 @@ class ImageDataset(Dataset):
         with Image.open(self._get_item_path(idx)).convert("RGB") as img:
             l_batch, ab_batch = self._prepare_images([img])
 
+            if self._device == torch.device("cpu"):
+                return (
+                    l_batch[0],
+                    ab_batch[0],
+                    self.label_number(self.label_from_index(idx)),
+                )
+
             return (
-                l_batch[0],
-                ab_batch[0],
+                l_batch[0].to(self._device, non_blocking=True),
+                ab_batch[0].to(self._device, non_blocking=True),
                 self.label_number(self.label_from_index(idx)),
             )

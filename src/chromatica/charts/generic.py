@@ -1,4 +1,4 @@
-"""Module with functions for draw plots in notebooks."""
+"""Module with functions for draw generic charts, like show lab image."""
 
 from __future__ import annotations
 
@@ -37,18 +37,3 @@ def lab2image(l_channel: torch.Tensor, ab: torch.Tensor) -> np.ndarray:
     rgb_tensor = LAB2RGB()(lab_tensor)
 
     return rgb_tensor.permute(1, 2, 0).detach().numpy()
-
-
-def train_plot():
-    """Returns train plot based on train history."""
-    raise NotImplementedError
-
-
-def validation_plot():
-    """Returns validation plot based on train history."""
-    raise NotImplementedError
-
-
-def test_plot():
-    """Returns test plot based on few test results."""
-    raise NotImplementedError

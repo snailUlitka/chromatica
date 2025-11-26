@@ -1,8 +1,11 @@
 """Class with U-Net like CNN without skip-connections."""
 
+from typing import override
+
 import torch
 from torch import nn
 
+from chromatica.nn.base import BaseCNN
 from chromatica.nn.v1.layers import (
     ConvLayer,
     IncreaseResolutionLayer,
@@ -10,7 +13,7 @@ from chromatica.nn.v1.layers import (
 )
 
 
-class CNN(nn.Module):
+class CNN(BaseCNN):
     """U-Net like CNN without skip-connections."""
 
     def __init__(self):
@@ -46,6 +49,7 @@ class CNN(nn.Module):
             ConvLayer(64, 2, activation=nn.Tanh()),
         )
 
+    @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Colorize tensor with image in LAB colorspace.
 
