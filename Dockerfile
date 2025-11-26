@@ -20,9 +20,16 @@ WORKDIR /app
 COPY --from=builder /dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && rm /tmp/*.whl
 
+# Copy Alembic configuration and migrations
+COPY alembic.ini ./alembic.ini
+COPY migrations ./migrations
+COPY entrypoint.sh ./entrypoint.sh
+COPY .env.example ./.env
+
 # Run as non-root user for safety
 RUN useradd --system --create-home --uid 1000 chromatica
 USER chromatica
 
 EXPOSE 8000
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["api"]

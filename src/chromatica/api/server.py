@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from os import getenv
-
 import uvicorn
+
+from chromatica.api.config import get_settings
 
 
 def main() -> None:
     """Start the FastAPI app with uvicorn."""
-    host = getenv("API_HOST", "127.0.0.1")
-    port = int(getenv("API_PORT", "8000"))
+    settings = get_settings()
+    host = settings.api_host
+    port = settings.api_port
     uvicorn.run("chromatica.api.app:app", host=host, port=port)
 
 

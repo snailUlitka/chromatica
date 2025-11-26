@@ -13,3 +13,6 @@ __pycache__
 
 # Dataset's data
 .data
+
+# Envs
+.env
