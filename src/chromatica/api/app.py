@@ -1,27 +1,41 @@
-"""FastAPI application for Chromatica."""
+"""FastAPI application for Chromatica backed by a relational database."""
 
 from __future__ import annotations
 
 import base64
-import json
 import threading
-import time
 import uuid
-from enum import StrEnum
+from collections.abc import Iterator  # noqa: TC003
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
 import numpy as np
 import torch
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, ValidationError
+from PIL import Image
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session  # noqa: TC002
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as TorchDataset
 from torchvision.transforms.v2 import RGB, Compose, PILToTensor, Resize, ToDtype
 
+from chromatica.api.bootstrap import ensure_seed_records, sync_datasets_from_disk
 from chromatica.api.config import Settings, get_settings
+from chromatica.api.db import SessionLocal, session_scope
+from chromatica.api.models import (
+    Architecture,
+    Dataset,
+    Status,
+    TrainedModel,
+)
+from chromatica.api.models import (
+    TrainingMetrics as TrainingMetricsORM,
+)
 from chromatica.datasets.transform import LAB2RGB, RGB2LAB
 from chromatica.nn.loader import load_cnn_class
 
@@ -29,25 +43,31 @@ if TYPE_CHECKING:
     from chromatica.nn.base import BaseCNN
 
 
-class AvailableDatasets(StrEnum):
-    """Supported datasets."""
-
-    COCO = "COCO"
-    FOOD101 = "FOOD101"
-
-
-class AvailableModels(StrEnum):
+class AvailableModels(str):
     """Supported model architectures."""
+
+    __slots__ = ()
 
     U_NET_WITH_SKIP_CONNECTIONS = "U_NET_WITH_SKIP_CONNECTIONS"
     U_NET_WITHOUT_SKIP_CONNECTIONS = "U_NET_WITHOUT_SKIP_CONNECTIONS"
 
 
+ARCHITECTURE_TO_MODEL = {
+    "u_net_v1": AvailableModels.U_NET_WITHOUT_SKIP_CONNECTIONS,
+    "u_net_v2": AvailableModels.U_NET_WITH_SKIP_CONNECTIONS,
+}
+
+LEGACY_MODEL_ALIASES = {
+    AvailableModels.U_NET_WITHOUT_SKIP_CONNECTIONS: "u_net_v1",
+    AvailableModels.U_NET_WITH_SKIP_CONNECTIONS: "u_net_v2",
+}
+
+
 class TrainingRequest(BaseModel):
     """Request payload for training a model."""
 
-    dataset: AvailableDatasets
-    model: AvailableModels
+    dataset: str
+    model: str
 
 
 class TrainingMetrics(BaseModel):
@@ -58,107 +78,7 @@ class TrainingMetrics(BaseModel):
     history: list[float] = Field(default_factory=list)
 
 
-class TrainingRecord(BaseModel):
-    """Registered model entry."""
-
-    id: str
-    dataset: AvailableDatasets
-    model: AvailableModels
-    status: str
-    model_path: str | None = None
-    metrics: TrainingMetrics | None = None
-    error: str | None = None
-    created_at: float = Field(default_factory=lambda: time.time())
-
-
-class ModelRegistry:
-    """Thread-safe registry for trained models."""
-
-    def __init__(self, root: str | Path | None = None) -> None:
-        self.root = Path(root) if root else Path(".data") / "models"
-        self.root.mkdir(parents=True, exist_ok=True)
-        self._registry_path = self.root / "registry.json"
-        self._lock = threading.Lock()
-        self._models: dict[str, dict[str, Any]] = self._load()
-
-    def _load(self) -> dict[str, dict[str, Any]]:
-        if self._registry_path.exists():
-            return json.loads(self._registry_path.read_text())
-        return {}
-
-    def _flush(self) -> None:
-        self._registry_path.write_text(json.dumps(self._models, indent=2))
-
-    def list_models(self) -> list[dict[str, Any]]:
-        """Return snapshot of all registered models."""
-        with self._lock:
-            return list(self._models.values())
-
-    def get(self, model_id: str) -> dict[str, Any] | None:
-        """Return model record by id or None if missing."""
-        with self._lock:
-            return self._models.get(model_id)
-
-    def register_pending(
-        self,
-        model_id: str,
-        dataset: AvailableDatasets,
-        model: AvailableModels,
-    ) -> TrainingRecord:
-        """Create a running record for the given model_id."""
-        record = TrainingRecord(
-            id=model_id, dataset=dataset, model=model, status="running"
-        )
-        with self._lock:
-            self._models[model_id] = record.model_dump()
-            self._flush()
-        return record
-
-    def mark_completed(
-        self,
-        model_id: str,
-        *,
-        model_path: Path,
-        metrics: TrainingMetrics,
-    ) -> TrainingRecord:
-        """Mark a model as completed and persist metrics."""
-        with self._lock:
-            payload = self._models.get(model_id)
-            if payload is None:
-                payload = TrainingRecord(
-                    id=model_id,
-                    dataset=AvailableDatasets.COCO,
-                    model=AvailableModels.U_NET_WITHOUT_SKIP_CONNECTIONS,
-                    status="running",
-                ).model_dump()
-            payload["status"] = "completed"
-            payload["model_path"] = str(model_path)
-            payload["metrics"] = metrics.model_dump()
-            self._models[model_id] = payload
-            self._flush()
-            return TrainingRecord(**payload)
-
-    def mark_failed(self, model_id: str, error: str) -> TrainingRecord:
-        """Mark a model as failed and store the error."""
-        with self._lock:
-            payload = self._models.get(model_id)
-            if payload is None:
-                payload = TrainingRecord(
-                    id=model_id,
-                    dataset=AvailableDatasets.COCO,
-                    model=AvailableModels.U_NET_WITHOUT_SKIP_CONNECTIONS,
-                    status="failed",
-                    error=error,
-                ).model_dump()
-            else:
-                payload["status"] = "failed"
-                payload["error"] = error
-            self._models[model_id] = payload
-            self._flush()
-            return TrainingRecord(**payload)
-
-
-class SyntheticColorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, int]]):
+class SyntheticColorDataset(TorchDataset[tuple[torch.Tensor, torch.Tensor, int]]):
     """Tiny synthetic dataset for quick training runs."""
 
     def __init__(self, length: int = 12, seed: int = 0) -> None:
@@ -177,8 +97,18 @@ class SyntheticColorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, int]]):
         return l_channel, ab_channels, idx
 
 
+def get_db_session() -> Iterator[Session]:
+    """FastAPI dependency yielding a database session."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+        SessionLocal.remove()
+
+
 def _create_model(model: AvailableModels) -> BaseCNN:
-    version = "v2" if model is AvailableModels.U_NET_WITH_SKIP_CONNECTIONS else "v1"
+    version = "v2" if model == AvailableModels.U_NET_WITH_SKIP_CONNECTIONS else "v1"
     cls = load_cnn_class(version)
     return cls()
 
@@ -211,10 +141,7 @@ def _evaluate(model: nn.Module, loader: DataLoader) -> float:
     return total / max(len(loader), 1)
 
 
-def _run_training(
-    dataset: AvailableDatasets, model: AvailableModels
-) -> tuple[BaseCNN, TrainingMetrics]:
-    del dataset  # currently unused but kept for API symmetry
+def _run_training(model: AvailableModels) -> tuple[BaseCNN, TrainingMetrics]:
     torch.manual_seed(42)
     net = _create_model(model)
     train_loader = DataLoader(SyntheticColorDataset(), batch_size=3, shuffle=True)
@@ -232,8 +159,6 @@ def _encode_image(rgb_tensor: torch.Tensor) -> str:
     rgb_clamped = torch.clamp(rgb_tensor, 0.0, 1.0)
     array = (rgb_clamped.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
     with BytesIO() as buffer:
-        from PIL import Image  # local import to reduce startup cost
-
         Image.fromarray(array).save(buffer, format="PNG")
         encoded = base64.b64encode(buffer.getvalue()).decode()
     return encoded
@@ -259,8 +184,6 @@ def _to_lab_tensor(image: UploadFile) -> torch.Tensor:
     if not content:
         raise HTTPException(status_code=400, detail="Empty image payload")
 
-    from PIL import Image  # local import to reduce startup cost
-
     pil_image = Image.open(BytesIO(content)).convert("RGB")
     transform = Compose(
         [
@@ -274,34 +197,101 @@ def _to_lab_tensor(image: UploadFile) -> torch.Tensor:
     return transform(pil_image)
 
 
-def train_and_register(
-    request: TrainingRequest,
+def _serialize_model(record: TrainedModel) -> dict[str, Any]:
+    metrics = None
+    if record.metrics:
+        metrics = TrainingMetrics(
+            train_error=record.metrics.train_error,
+            test_error=record.metrics.test_error,
+            history=record.metrics.history or [],
+        ).model_dump()
+
+    created_ts = record.created_at.timestamp() if record.created_at else None
+    completed_ts = record.completed_at.timestamp() if record.completed_at else None
+    return {
+        "id": record.id,
+        "dataset": record.dataset.code,
+        "model": record.architecture.code,
+        "status": record.status.value,
+        "model_path": record.model_path,
+        "metrics": metrics,
+        "error": record.error,
+        "created_at": created_ts,
+        "completed_at": completed_ts,
+    }
+
+
+def _resolve_architecture(
+    session: Session, raw_model: str
+) -> tuple[Architecture, AvailableModels]:
+    normalized = raw_model.strip()
+    fallback_code = LEGACY_MODEL_ALIASES.get(normalized)
+    candidate_codes = [normalized]
+    if fallback_code:
+        candidate_codes.append(fallback_code)
+
+    for candidate in candidate_codes:
+        architecture = session.scalar(
+            select(Architecture).where(Architecture.code == candidate)
+        )
+        if architecture is None:
+            continue
+        mapped_model = ARCHITECTURE_TO_MODEL.get(architecture.code)
+        if mapped_model is None:
+            break
+        return architecture, mapped_model
+
+    raise HTTPException(status_code=404, detail="Model architecture not found")
+
+
+def _get_dataset(session: Session, code: str) -> Dataset:
+    dataset = session.scalar(select(Dataset).where(Dataset.code == code))
+    if dataset is None:
+        raise HTTPException(status_code=404, detail=f"Dataset '{code}' not found")
+    return dataset
+
+
+def _train_and_persist(
     model_id: str,
-    registry: ModelRegistry,
+    architecture: AvailableModels,
+    model_store: Path,
 ) -> None:
-    """Run training in a background thread and persist record."""
-    registry.register_pending(model_id, request.dataset, request.model)
+    """Run training in a background thread and persist record changes."""
     try:
-        model, metrics = _run_training(request.dataset, request.model)
-        model_path = registry.root / f"{model_id}.pt"
+        model, metrics = _run_training(architecture)
+        model_store.mkdir(parents=True, exist_ok=True)
+        model_path = model_store / f"{model_id}.pt"
         torch.save(model.state_dict(), model_path)
-        registry.mark_completed(model_id, model_path=model_path, metrics=metrics)
-    except Exception as exc:  # pragma: no cover - defensive  # noqa: BLE001
-        registry.mark_failed(model_id, error=str(exc))
+
+        with session_scope() as session:
+            record = session.get(TrainedModel, model_id)
+            if record is None:
+                return
+            record.status = Status.COMPLETED
+            record.model_path = str(model_path)
+            record.completed_at = datetime.now(tz=UTC)
+            record.metrics = TrainingMetricsORM(
+                model_id=model_id,
+                train_error=metrics.train_error,
+                test_error=metrics.test_error,
+                history=metrics.history,
+            )
+    except Exception as exc:  # pragma: no cover - defensive branch  # noqa: BLE001
+        with session_scope() as session:
+            record = session.get(TrainedModel, model_id)
+            if record is None:
+                return
+            record.status = Status.FAILED
+            record.error = str(exc)
 
 
-def build_app(
-    registry: ModelRegistry | None = None, settings: Settings | None = None
-) -> FastAPI:
+def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901
     """Build and return configured FastAPI instance."""
-    registry = registry or ModelRegistry()
-    resolved_settings = settings
-    if resolved_settings is None:
-        try:
-            resolved_settings = get_settings()
-        except ValidationError:
-            resolved_settings = None
-    cors_origins = resolved_settings.cors_origins if resolved_settings else ["*"]
+    resolved_settings = settings or get_settings()
+    model_store = Path(resolved_settings.model_store_path)
+    dataset_root = Path(resolved_settings.datasets_path)
+
+    cors_origins = resolved_settings.cors_origins
     allow_credentials = "*" not in cors_origins
     app = FastAPI(title="Chromatica API")
     app.add_middleware(
@@ -312,45 +302,86 @@ def build_app(
         allow_headers=["*"],
     )
 
+    @app.on_event("startup")
+    def bootstrap() -> None:
+        ensure_seed_records()
+        sync_datasets_from_disk(dataset_root)
+
     @app.get("/datasets")
-    def list_datasets() -> dict[str, list[str]]:
-        return {"datasets": [d.value for d in AvailableDatasets]}
+    def list_datasets(
+        session: Annotated[Session, Depends(get_db_session)],
+    ) -> dict[str, list[str]]:
+        datasets = session.scalars(select(Dataset.code)).all()
+        return {"datasets": datasets}
 
     @app.get("/models")
-    def list_models() -> dict[str, list[str]]:
-        return {"models": [m.value for m in AvailableModels]}
+    def list_models(
+        session: Annotated[Session, Depends(get_db_session)],
+    ) -> dict[str, list[str]]:
+        architectures = session.scalars(select(Architecture.code)).all()
+        return {"models": architectures}
 
     @app.post("/train")
-    def train_endpoint(request: TrainingRequest) -> dict[str, str]:
+    def train_endpoint(
+        request: TrainingRequest,
+        session: Annotated[Session, Depends(get_db_session)],
+    ) -> dict[str, str]:
+        dataset = _get_dataset(session, request.dataset)
+        architecture, model_enum = _resolve_architecture(session, request.model)
         model_id = str(uuid.uuid4())
+
+        record = TrainedModel(
+            id=model_id,
+            dataset_id=dataset.id,
+            architecture_id=architecture.id,
+            status=Status.RUNNING,
+        )
+        session.add(record)
+        session.commit()
+
         thread = threading.Thread(
-            target=train_and_register,
-            args=(request, model_id, registry),
+            target=_train_and_persist,
+            args=(model_id, model_enum, model_store),
             daemon=True,
         )
         thread.start()
         return {"model_id": model_id, "status": "scheduled"}
 
     @app.get("/trained-models")
-    def trained_models() -> dict[str, list[dict[str, Any]]]:
-        return {"models": registry.list_models()}
+    def trained_models(
+        session: Annotated[Session, Depends(get_db_session)],
+    ) -> dict[str, list[dict[str, Any]]]:
+        records = session.scalars(select(TrainedModel)).all()
+        return {"models": [_serialize_model(record) for record in records]}
 
     @app.post("/predict")
     async def predict(
-        model_id: str, file: Annotated[UploadFile, File(...)]
+        model_id: str,
+        file: Annotated[UploadFile, File(...)],
+        session: Annotated[Session, Depends(get_db_session)],
     ) -> dict[str, Any]:
-        record = registry.get(model_id)
-        if record is None or record.get("status") != "completed":
-            raise HTTPException(status_code=404, detail="Model not found or not ready")
+        record = session.get(TrainedModel, model_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Model not found")
+        if record.status != Status.COMPLETED:
+            raise HTTPException(status_code=409, detail="Model is not ready")
 
-        model_variant = AvailableModels(record["model"])
-        model = _create_model(model_variant)
+        model_enum = ARCHITECTURE_TO_MODEL.get(record.architecture.code)
+        if model_enum is None:
+            raise HTTPException(status_code=400, detail="Unknown architecture")
 
-        model_path = record.get("model_path")
+        model = _create_model(model_enum)
+        model_path = record.model_path
         if model_path is None:
             raise HTTPException(status_code=400, detail="Model path missing")
-        state_dict = torch.load(model_path, map_location="cpu")
+
+        path_obj = Path(model_path)
+        if not path_obj.exists():
+            raise HTTPException(status_code=404, detail="Stored model weights missing")
+
+        state_dict = torch.load(path_obj, map_location="cpu")
         model.load_state_dict(state_dict)
+        model.eval()
 
         lab_tensor = _to_lab_tensor(file)
         rgb_tensor, metrics = _prepare_image(lab_tensor, model)

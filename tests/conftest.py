@@ -1,12 +1,17 @@
 """Shared fixtures for API tests."""
 
-from collections.abc import Iterator
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
 
-from chromatica.api.app import ModelRegistry, build_app
+from chromatica.api.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -42,9 +47,36 @@ def pytest_collection_modifyitems(
 
 
 @pytest.fixture
-def api_client(tmp_path: Path) -> Iterator[TestClient]:
-    """Provide an API client backed by a temporary registry."""
-    registry = ModelRegistry(tmp_path)
-    app = build_app(registry)
+def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    """Provide an API client backed by a temporary SQLite database."""
+    db_path = tmp_path / "api.sqlite3"
+    dataset_root = tmp_path / "datasets"
+    dataset_root.mkdir()
+    sample_dataset = dataset_root / "demo"
+    sample_dataset.mkdir()
+
+    # Lightweight binary so dataset bootstrapper has something to ingest.
+    sample_dataset.joinpath("image.png").write_bytes(b"\x89PNG\r\n")
+
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setenv("DATASETS_PATH", str(dataset_root))
+    monkeypatch.setenv("MODEL_STORE_PATH", str(tmp_path / "models"))
+    get_settings.cache_clear()
+
+    # Local imports to apply environment overrides before initialization.
+    from chromatica.api import db as db_module  # noqa: PLC0415
+    from chromatica.api import models as models_module  # noqa: PLC0415
+    from chromatica.api.bootstrap import (  # noqa: PLC0415
+        ensure_seed_records,
+        sync_datasets_from_disk,
+    )
+
+    models_module.Base.metadata.create_all(db_module.engine)
+    ensure_seed_records()
+    sync_datasets_from_disk(dataset_root)
+
+    from chromatica.api.app import build_app  # noqa: PLC0415
+
+    app = build_app()
     with TestClient(app) as client:
         yield client

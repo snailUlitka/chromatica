@@ -38,3 +38,4 @@ def session_scope() -> Iterator:
         raise
     finally:
         session.close()
+        SessionLocal.remove()

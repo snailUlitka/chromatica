@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
     Enum,
@@ -123,9 +124,7 @@ class TrainingMetrics(Base):
     )
     train_error: Mapped[float] = mapped_column(Float, nullable=False)
     test_error: Mapped[float] = mapped_column(Float, nullable=False)
-    history: Mapped[Any | None] = mapped_column(
-        String().with_variant(Text, "postgresql"), nullable=True
-    )
+    history: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow
     )

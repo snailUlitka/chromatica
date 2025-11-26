@@ -120,7 +120,7 @@ def upgrade() -> None:
 
     op.create_table(
         "dataset_images",
-        sa.Column("id", sa.BigInteger(), primary_key=True, nullable=False),
+        sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
         sa.Column(
             "dataset_id",
             sa.Integer(),

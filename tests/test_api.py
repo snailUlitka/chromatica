@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING
 import pytest
 from PIL import Image
 
-from chromatica.api.app import AvailableDatasets, AvailableModels
-
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
@@ -44,25 +42,21 @@ def test_list_endpoints(api_client: TestClient) -> None:
     """Datasets and model discovery endpoints respond with supported values."""
     datasets = api_client.get("/datasets")
     assert datasets.status_code == 200
-    assert set(datasets.json()["datasets"]) == {
-        AvailableDatasets.COCO.value,
-        AvailableDatasets.FOOD101.value,
-    }
+    dataset_codes = set(datasets.json()["datasets"])
+    assert {"COCO", "FOOD101"}.issubset(dataset_codes)
+    assert "demo" in dataset_codes
 
     models = api_client.get("/models")
     assert models.status_code == 200
-    assert set(models.json()["models"]) == {
-        AvailableModels.U_NET_WITHOUT_SKIP_CONNECTIONS.value,
-        AvailableModels.U_NET_WITH_SKIP_CONNECTIONS.value,
-    }
+    assert set(models.json()["models"]) == {"u_net_v1", "u_net_v2"}
 
 
 @pytest.mark.continues
 def test_train_and_predict(api_client: TestClient) -> None:
     """Training a model returns a completed record and enables prediction."""
     train_request = {
-        "dataset": AvailableDatasets.COCO.value,
-        "model": AvailableModels.U_NET_WITHOUT_SKIP_CONNECTIONS.value,
+        "dataset": "demo",
+        "model": "u_net_v1",
     }
     response = api_client.post("/train", json=train_request)
     assert response.status_code == 200
