@@ -28,6 +28,7 @@ COPY .env.example ./.env
 
 # Run as non-root user for safety
 RUN useradd --system --create-home --uid 1000 chromatica
+RUN mkdir -p /app/.data && chown -R chromatica:chromatica /app
 USER chromatica
 
 EXPOSE 8000

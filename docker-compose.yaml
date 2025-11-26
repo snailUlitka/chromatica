@@ -12,6 +12,16 @@ services:
       db:
         condition: service_healthy
 
+  ui:
+    image: chromatica-ui:prod
+    environment:
+      BASE_API_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+
   db:
     image: postgres:16-alpine
     environment:

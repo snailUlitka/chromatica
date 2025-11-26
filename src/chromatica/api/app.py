@@ -15,11 +15,13 @@ from typing import TYPE_CHECKING, Annotated, Any
 import numpy as np
 import torch
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, ValidationError
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.v2 import RGB, Compose, PILToTensor, Resize, ToDtype
 
+from chromatica.api.config import Settings, get_settings
 from chromatica.datasets.transform import LAB2RGB, RGB2LAB
 from chromatica.nn.loader import load_cnn_class
 
@@ -257,7 +259,7 @@ def _to_lab_tensor(image: UploadFile) -> torch.Tensor:
     if not content:
         raise HTTPException(status_code=400, detail="Empty image payload")
 
-    from PIL import Image
+    from PIL import Image  # local import to reduce startup cost
 
     pil_image = Image.open(BytesIO(content)).convert("RGB")
     transform = Compose(
@@ -288,10 +290,27 @@ def train_and_register(
         registry.mark_failed(model_id, error=str(exc))
 
 
-def build_app(registry: ModelRegistry | None = None) -> FastAPI:
+def build_app(
+    registry: ModelRegistry | None = None, settings: Settings | None = None
+) -> FastAPI:
     """Build and return configured FastAPI instance."""
     registry = registry or ModelRegistry()
+    resolved_settings = settings
+    if resolved_settings is None:
+        try:
+            resolved_settings = get_settings()
+        except ValidationError:
+            resolved_settings = None
+    cors_origins = resolved_settings.cors_origins if resolved_settings else ["*"]
+    allow_credentials = "*" not in cors_origins
     app = FastAPI(title="Chromatica API")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=allow_credentials,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/datasets")
     def list_datasets() -> dict[str, list[str]]:
