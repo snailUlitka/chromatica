@@ -88,6 +88,7 @@ docstring-code-line-length = "dynamic"
 dev = [
     "pre-commit>=4.2.0",
     "pytest>=8.3.4",
+    "ruff>=0.14.6",
 ]
 notebook = [
     "ipywidgets>=8.1.7",
