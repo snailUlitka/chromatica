@@ -21,9 +21,12 @@
 - No automated test suite yet; add `pytest`-style tests under `tests/` using `test_*.py` and cover new logic (especially data transforms, metrics, and model loaders).
 - Keep tests deterministic (set seeds for torch/numpy) and small; prefer CPU-friendly fixtures and synthetic tensors.
 - For exploratory checks, place notebooks under `notebooks/<feature>/` with clear names like `metrics_validation.ipynb`.
+- Long/expensive cases should be marked with `@pytest.mark.continues` and are
+  skipped by default; run them manually with `uv run pytest --runs-continues`.
 
 ## Commit & Pull Request Guidelines
 - Commit subjects should be auto-prefixed with the issue/ticket from the branch (see `scripts/github_commit_prefix.py`); example: `[#123]: add delta-a metric coverage`.
+- Commit messages must start with `<tag>: <message>` in all lower case; use the area tag that best fits (e.g., `api: add fastapi api stub`).
 - Commit in small, reviewable chunks and keep messages imperative.
 - PRs should describe intent, key changes, testing performed (commands/notebooks), and any open risks; link issues and attach before/after visuals for charts or qualitative colorization results.
 

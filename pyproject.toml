@@ -22,6 +22,7 @@ dependencies = [
 
 [project.scripts]
 dataset_create = "chromatica.cli.dataset:create"
+api = "chromatica.api.server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -81,6 +82,7 @@ docstring-code-line-length = "dynamic"
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pytest>=8.3.4",
 ]
 notebook = [
     "ipywidgets>=8.1.7",
