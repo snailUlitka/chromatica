@@ -1,0 +1,30 @@
+services:
+  api:
+    image: chromatica-api:prod
+    command: ["api"]
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DATABASE_URL: postgresql://chromatica:chromatica@db:5432/chromatica
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chromatica
+      POSTGRES_PASSWORD: chromatica
+      POSTGRES_DB: chromatica
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chromatica"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
