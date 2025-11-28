@@ -6,6 +6,7 @@ import base64
 import threading
 import uuid
 from collections.abc import Iterator  # noqa: TC003
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
@@ -19,8 +20,7 @@ from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session  # noqa: TC002
-from torch import nn
-from torch.cuda.amp import GradScaler, autocast
+from torch import amp, nn
 from torch.utils.data import DataLoader, random_split
 from torchvision.transforms.v2 import RGB, Compose, PILToTensor, Resize, ToDtype
 
@@ -177,7 +177,7 @@ def _build_dataloaders(
     return train_loader, val_loader
 
 
-def _train_model(
+def _train_model(  # noqa: PLR0915
     model: AvailableModels, dataset_path: Path, config: TrainingConfig
 ) -> tuple[BaseCNN, TrainingMetrics]:
     torch.manual_seed(config.seed)
@@ -187,8 +187,10 @@ def _train_model(
     train_loader, val_loader = _build_dataloaders(dataset_path, config, device)
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=config.learning_rate)
-    use_amp = config.use_amp if config.use_amp is not None else device.type == "cuda"
-    scaler = GradScaler(enabled=use_amp and device.type == "cuda")
+    use_amp = (
+        config.use_amp if config.use_amp is not None else device.type == "cuda"
+    ) and device.type == "cuda"
+    scaler = amp.GradScaler("cuda") if use_amp else None
 
     history: list[EpochMetrics] = []
     for epoch in range(1, config.epochs + 1):
@@ -202,10 +204,15 @@ def _train_model(
             ab_tensor = ab_batch.to(device, non_blocking=True)
 
             optimizer.zero_grad(set_to_none=True)
-            with autocast(enabled=use_amp):
+            autocast_context = (
+                amp.autocast(device_type="cuda", enabled=True)
+                if use_amp
+                else nullcontext()
+            )
+            with autocast_context:
                 preds = net(l_tensor)
                 loss = loss_fn(preds, ab_tensor)
-            if scaler.is_enabled():
+            if scaler is not None:
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
