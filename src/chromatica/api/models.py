@@ -89,7 +89,14 @@ class TrainedModel(Base):
         ForeignKey("architectures.id"), nullable=False, index=True
     )
     status: Mapped[Status] = mapped_column(
-        Enum(Status), default=Status.RUNNING, nullable=False
+        Enum(
+            Status,
+            native_enum=False,
+            values_callable=lambda enum: [member.value for member in enum],
+            validate_strings=True,
+        ),
+        default=Status.RUNNING,
+        nullable=False,
     )
     model_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     weights_blob: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
