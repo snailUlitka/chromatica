@@ -7,11 +7,12 @@ services:
       API_PORT: 8000
       DATABASE_URL: postgresql://chromatica:chromatica@db:5432/chromatica
       DATASETS_PATH: /app/.data
-      MODEL_STORE_PATH: /app/.data/models
+      MODEL_STORE_PATH: /app/.models
     ports:
       - "8000:8000"
     volumes:
       - ./.data:/app/.data
+      - ./.models:/app/.models
     depends_on:
       db:
         condition: service_healthy

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     datasets_path: str = "/app/.data"
-    model_store_path: str = "/app/.data/models"
+    model_store_path: str = "/app/.models"
     cors_origins: list[str] = ["*"]
 
     model_config = SettingsConfigDict(
