@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from chromatica.api.config import get_settings
 
@@ -21,15 +21,13 @@ def _make_engine():
 
 
 engine = _make_engine()
-SessionLocal = scoped_session(
-    sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
-)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, future=True)
 
 
 @contextmanager
-def session_scope() -> Iterator:
+def session_scope() -> Iterator[Session]:
     """Provide a transactional scope around a series of operations."""
-    session = SessionLocal()
+    session: Session = SessionLocal()
     try:
         yield session
         session.commit()
@@ -38,4 +36,3 @@ def session_scope() -> Iterator:
         raise
     finally:
         session.close()
-        SessionLocal.remove()

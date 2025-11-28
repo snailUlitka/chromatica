@@ -27,6 +27,7 @@ dependencies = [
 [project.scripts]
 dataset_create = "chromatica.cli.dataset:create"
 api = "chromatica.api.server:main"
+dev = "chromatica.api.server:dev"
 
 [build-system]
 requires = ["hatchling"]

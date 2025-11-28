@@ -122,7 +122,6 @@ def get_db_session() -> Iterator[Session]:
         yield session
     finally:
         session.close()
-        SessionLocal.remove()
 
 
 def _create_model(model: AvailableModels) -> BaseCNN:
