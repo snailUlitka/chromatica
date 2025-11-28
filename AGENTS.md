@@ -24,6 +24,9 @@
 - Long/expensive cases should be marked with `@pytest.mark.continues` and are
   skipped by default; run them manually with `uv run pytest --runs-continues`.
 
+## Automation & Approvals
+- When commits or tooling runs are requested, if sandboxing blocks `.git` or cache writes, invoke commands with the necessary elevated permissions and a brief justification immediately instead of asking the user how to proceed.
+
 ## Commit & Pull Request Guidelines
 - Commit subjects should be auto-prefixed with the issue/ticket from the branch (see `scripts/github_commit_prefix.py`); example: `[#123]: add delta-a metric coverage`.
 - Commit messages must start with `<tag>: <message>` in all lower case; use the area tag that best fits (e.g., `api: add fastapi api stub`).
