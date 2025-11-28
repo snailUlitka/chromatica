@@ -8,14 +8,24 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from chromatica.api.config import get_settings
+from chromatica.api.server import _apply_dev_defaults
+
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = os.environ.get("DATABASE_URL")
-if not database_url:
-    raise RuntimeError("DATABASE_URL is required for migrations.")
+_apply_dev_defaults()
+get_settings.cache_clear()
+try:
+    database_url = get_settings().database_url
+except Exception as exc:  # noqa: BLE001
+    msg = (
+        "DATABASE_URL is required for migrations. "
+        "Set it explicitly or provide a .env file."
+    )
+    raise RuntimeError(msg) from exc
 
 config.set_main_option("sqlalchemy.url", database_url)
 
