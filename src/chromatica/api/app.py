@@ -20,8 +20,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session  # noqa: TC002
 from torch import nn
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset as TorchDataset
+from torch.cuda.amp import GradScaler, autocast
+from torch.utils.data import DataLoader, random_split
 from torchvision.transforms.v2 import RGB, Compose, PILToTensor, Resize, ToDtype
 
 from chromatica.api.bootstrap import ensure_seed_records, sync_datasets_from_disk
@@ -36,7 +36,9 @@ from chromatica.api.models import (
 from chromatica.api.models import (
     TrainingMetrics as TrainingMetricsORM,
 )
+from chromatica.datasets.dataset import DirectoryImageDataset
 from chromatica.datasets.transform import LAB2RGB, RGB2LAB
+from chromatica.metrics.color_diversity import compute_delta_a_stats
 from chromatica.nn.loader import load_cnn_class
 
 if TYPE_CHECKING:
@@ -63,38 +65,54 @@ LEGACY_MODEL_ALIASES = {
 }
 
 
+class TrainingConfig(BaseModel):
+    """Hyperparameters for a training run."""
+
+    epochs: int = Field(2, ge=1, le=100)
+    batch_size: int = Field(4, ge=1, le=64)
+    learning_rate: float = Field(1e-3, gt=0.0)
+    val_split: float = Field(0.2, ge=0.0, lt=1.0)
+    num_workers: int = Field(0, ge=0, le=8)
+    seed: int = 42
+    use_amp: bool | None = None
+    max_train_batches: int | None = Field(
+        None, ge=1, description="Optional cap for train batches per epoch."
+    )
+    max_val_batches: int | None = Field(
+        None, ge=1, description="Optional cap for val batches per epoch."
+    )
+
+
+class EpochMetrics(BaseModel):
+    """Loss snapshot for an epoch."""
+
+    epoch: int
+    train_loss: float
+    val_loss: float | None = None
+
+
+class TrainingHistory(BaseModel):
+    """History and config attached to a training run."""
+
+    config: TrainingConfig | None = None
+    epochs: list[EpochMetrics] = Field(default_factory=list)
+
+
 class TrainingRequest(BaseModel):
     """Request payload for training a model."""
 
     dataset: str
     model: str
+    config: TrainingConfig = Field(default_factory=TrainingConfig)
 
 
 class TrainingMetrics(BaseModel):
     """Training metrics snapshot."""
 
     train_error: float
-    test_error: float
-    history: list[float] = Field(default_factory=list)
-
-
-class SyntheticColorDataset(TorchDataset[tuple[torch.Tensor, torch.Tensor, int]]):
-    """Tiny synthetic dataset for quick training runs."""
-
-    def __init__(self, length: int = 12, seed: int = 0) -> None:
-        super().__init__()
-        self.length = length
-        self.generator = torch.Generator().manual_seed(seed)
-
-    def __len__(self) -> int:
-        """Return dataset length."""
-        return self.length
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, int]:
-        """Generate a random LAB tensor triple for index."""
-        l_channel = torch.rand((1, 64, 64), generator=self.generator)
-        ab_channels = torch.rand((2, 64, 64), generator=self.generator) * 2 - 1
-        return l_channel, ab_channels, idx
+    val_error: float | None
+    history: TrainingHistory = Field(default_factory=TrainingHistory)
+    delta_a: dict[str, float] | None = None
 
 
 def get_db_session() -> Iterator[Session]:
@@ -113,44 +131,126 @@ def _create_model(model: AvailableModels) -> BaseCNN:
     return cls()
 
 
-def _train_once(model: nn.Module, loader: DataLoader) -> float:
+def _select_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():  # type: ignore[attr-defined]
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def _build_dataloaders(
+    dataset_path: Path, config: TrainingConfig, device: torch.device
+) -> tuple[DataLoader, DataLoader | None]:
+    dataset = DirectoryImageDataset(dataset_path)
+    if len(dataset) == 0:
+        raise HTTPException(status_code=400, detail="Dataset is empty")
+
+    val_size = 0
+    if config.val_split > 0.0 and len(dataset) > 1:
+        val_size = max(1, int(len(dataset) * config.val_split))
+    train_size = len(dataset) - val_size
+    if train_size <= 0:
+        raise HTTPException(status_code=400, detail="Not enough samples to train")
+
+    generator = torch.Generator().manual_seed(config.seed)
+    train_dataset, val_dataset = random_split(
+        dataset, [train_size, val_size], generator=generator
+    )
+
+    pin_memory = device.type == "cuda"
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config.batch_size,
+        shuffle=True,
+        pin_memory=pin_memory,
+        num_workers=config.num_workers,
+    )
+    val_loader = None
+    if val_size > 0:
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=config.batch_size,
+            shuffle=False,
+            pin_memory=pin_memory,
+            num_workers=config.num_workers,
+        )
+    return train_loader, val_loader
+
+
+def _train_model(
+    model: AvailableModels, dataset_path: Path, config: TrainingConfig
+) -> tuple[BaseCNN, TrainingMetrics]:
+    torch.manual_seed(config.seed)
+    device = _select_device()
+    net = _create_model(model).to(device)
+
+    train_loader, val_loader = _build_dataloaders(dataset_path, config, device)
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    model.train()
+    optimizer = torch.optim.Adam(net.parameters(), lr=config.learning_rate)
+    use_amp = config.use_amp if config.use_amp is not None else device.type == "cuda"
+    scaler = GradScaler(enabled=use_amp and device.type == "cuda")
 
-    loss_sum = 0.0
-    for batch in loader:
-        optimizer.zero_grad(set_to_none=True)
-        l_batch, ab_batch, _ = batch
-        preds = model(l_batch)
-        loss = loss_fn(preds, ab_batch)
-        loss.backward()
-        optimizer.step()
-        loss_sum += loss.item()
-    return loss_sum / max(len(loader), 1)
+    history: list[EpochMetrics] = []
+    for epoch in range(1, config.epochs + 1):
+        net.train()
+        train_loss = 0.0
+        train_batches = 0
+        for batch_idx, (l_batch, ab_batch, _) in enumerate(train_loader, start=1):
+            if config.max_train_batches and batch_idx > config.max_train_batches:
+                break
+            l_tensor = l_batch.to(device, non_blocking=True)
+            ab_tensor = ab_batch.to(device, non_blocking=True)
 
+            optimizer.zero_grad(set_to_none=True)
+            with autocast(enabled=use_amp):
+                preds = net(l_tensor)
+                loss = loss_fn(preds, ab_tensor)
+            if scaler.is_enabled():
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
 
-def _evaluate(model: nn.Module, loader: DataLoader) -> float:
-    loss_fn = nn.MSELoss()
-    model.eval()
-    total = 0.0
-    with torch.inference_mode():
-        for l_batch, ab_batch, _ in loader:
-            preds = model(l_batch)
-            total += loss_fn(preds, ab_batch).item()
-    return total / max(len(loader), 1)
+            train_loss += loss.item()
+            train_batches += 1
 
+        train_loss = train_loss / max(train_batches, 1)
 
-def _run_training(model: AvailableModels) -> tuple[BaseCNN, TrainingMetrics]:
-    torch.manual_seed(42)
-    net = _create_model(model)
-    train_loader = DataLoader(SyntheticColorDataset(), batch_size=3, shuffle=True)
-    history = [_train_once(net, train_loader) for _ in range(2)]
-    test_error = _evaluate(net, train_loader)
+        val_loss = None
+        if val_loader is not None:
+            net.eval()
+            running_val = 0.0
+            val_batches = 0
+            with torch.inference_mode():
+                for batch_idx, (l_batch, ab_batch, _) in enumerate(val_loader, start=1):
+                    if config.max_val_batches and batch_idx > config.max_val_batches:
+                        break
+                    l_tensor = l_batch.to(device, non_blocking=True)
+                    ab_tensor = ab_batch.to(device, non_blocking=True)
+                    preds = net(l_tensor)
+                    running_val += loss_fn(preds, ab_tensor).item()
+                    val_batches += 1
+            if val_batches:
+                val_loss = running_val / val_batches
+
+        history.append(
+            EpochMetrics(epoch=epoch, train_loss=train_loss, val_loss=val_loss)
+        )
+
+    delta_metrics = None
+    if val_loader is not None:
+        delta_metrics = compute_delta_a_stats(
+            val_loader, net, device=device, use_amp=use_amp
+        )
+
     metrics = TrainingMetrics(
-        train_error=history[-1],
-        test_error=test_error,
-        history=history,
+        train_error=history[-1].train_loss,
+        val_error=history[-1].val_loss,
+        history=TrainingHistory(config=config, epochs=history),
+        delta_a=delta_metrics,
     )
     return net, metrics
 
@@ -200,10 +300,19 @@ def _to_lab_tensor(image: UploadFile) -> torch.Tensor:
 def _serialize_model(record: TrainedModel) -> dict[str, Any]:
     metrics = None
     if record.metrics:
+        history_payload = record.metrics.history or {}
+        epochs_raw = history_payload.get("epochs", [])
+        config_raw = history_payload.get("config")
+        delta_a = history_payload.get("delta_a")
+        history = TrainingHistory(
+            config=TrainingConfig.model_validate(config_raw) if config_raw else None,
+            epochs=[EpochMetrics.model_validate(entry) for entry in epochs_raw or []],
+        )
         metrics = TrainingMetrics(
             train_error=record.metrics.train_error,
-            test_error=record.metrics.test_error,
-            history=record.metrics.history or [],
+            val_error=record.metrics.test_error,
+            history=history,
+            delta_a=delta_a,
         ).model_dump()
 
     created_ts = record.created_at.timestamp() if record.created_at else None
@@ -255,10 +364,12 @@ def _train_and_persist(
     model_id: str,
     architecture: AvailableModels,
     model_store: Path,
+    dataset_path: Path,
+    config: TrainingConfig,
 ) -> None:
     """Run training in a background thread and persist record changes."""
     try:
-        model, metrics = _run_training(architecture)
+        model, metrics = _train_model(architecture, dataset_path, config)
         model_store.mkdir(parents=True, exist_ok=True)
         model_path = model_store / f"{model_id}.pt"
         torch.save(model.state_dict(), model_path)
@@ -273,8 +384,14 @@ def _train_and_persist(
             record.metrics = TrainingMetricsORM(
                 model_id=model_id,
                 train_error=metrics.train_error,
-                test_error=metrics.test_error,
-                history=metrics.history,
+                test_error=metrics.val_error,
+                history={
+                    "config": metrics.history.config.model_dump()
+                    if metrics.history.config
+                    else None,
+                    "epochs": [entry.model_dump() for entry in metrics.history.epochs],
+                    "delta_a": metrics.delta_a,
+                },
             )
     except Exception as exc:  # pragma: no cover - defensive branch  # noqa: BLE001
         with session_scope() as session:
@@ -285,7 +402,7 @@ def _train_and_persist(
             record.error = str(exc)
 
 
-def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901
+def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901, PLR0915
     """Build and return configured FastAPI instance."""
     resolved_settings = settings or get_settings()
     model_store = Path(resolved_settings.model_store_path)
@@ -321,6 +438,12 @@ def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901
         architectures = session.scalars(select(Architecture.code)).all()
         return {"models": architectures}
 
+    @app.get("/train/config")
+    def default_training_config() -> dict[str, Any]:
+        """Expose default training hyperparameters."""
+        defaults = TrainingConfig()
+        return {"config": defaults.model_dump()}
+
     @app.post("/train")
     def train_endpoint(
         request: TrainingRequest,
@@ -329,6 +452,17 @@ def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901
         dataset = _get_dataset(session, request.dataset)
         architecture, model_enum = _resolve_architecture(session, request.model)
         model_id = str(uuid.uuid4())
+
+        dataset_path = dataset_root / dataset.code
+        if not dataset_path.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Dataset directory '{dataset_path}' not found",
+            )
+        try:
+            DirectoryImageDataset(dataset_path)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         record = TrainedModel(
             id=model_id,
@@ -341,7 +475,7 @@ def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901
 
         thread = threading.Thread(
             target=_train_and_persist,
-            args=(model_id, model_enum, model_store),
+            args=(model_id, model_enum, model_store, dataset_path, request.config),
             daemon=True,
         )
         thread.start()

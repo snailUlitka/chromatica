@@ -16,6 +16,7 @@ import logging
 from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
+from typing import ClassVar
 
 import torch
 from PIL import Image
@@ -133,4 +134,80 @@ class ImageDataset(Dataset):
                 l_batch[0].to(self._device, non_blocking=True),
                 ab_batch[0].to(self._device, non_blocking=True),
                 self.label_number(self.label_from_index(idx)),
+            )
+
+
+class DirectoryImageDataset(ImageDataset):
+    """Dataset variant that works with arbitrary image filenames."""
+
+    _IMAGE_EXTENSIONS: ClassVar[set[str]] = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+    def __init__(self, path_to_dir: Path, device: torch.device | None = None) -> None:
+        super().__init__(path_to_dir, device)
+        self._files = self._list_files()
+        if not self._files:
+            msg = f"No image files found in {path_to_dir}"
+            raise ValueError(msg)
+        self._labels = self._derive_labels()
+
+    def _list_files(self) -> list[Path]:
+        return sorted(
+            path
+            for path in self._path_to_dir.iterdir()
+            if path.is_file()
+            and path.suffix.lower() in self._IMAGE_EXTENSIONS
+            and not path.name.startswith(".")
+        )
+
+    def _derive_labels(self) -> list[str]:
+        labels = []
+        for file_path in self._files:
+            stem = file_path.stem
+            label = stem.rsplit("_", 1)[0] if "_" in stem else stem
+            labels.append(label)
+        return sorted(set(labels))
+
+    def __len__(self) -> int:
+        """Length of dataset split."""
+        return len(self._files)
+
+    @property
+    def labels(self) -> list[str]:
+        """All labels in dataset, sorted with `sorted`."""
+        return self._labels
+
+    def label_from_index(self, idx: int) -> str:
+        """Return label name from item's index."""
+        return self._labels[self.label_number_by_path(self._files[idx])]
+
+    def label_number(self, label: str) -> int:
+        """Return label's number from label name."""
+        return self._labels.index(label)
+
+    def label_number_by_path(self, path: Path) -> int:
+        """Return label number derived from a path."""
+        stem = path.stem
+        label = stem.rsplit("_", 1)[0] if "_" in stem else stem
+        return self.label_number(label)
+
+    def _get_item_path(self, idx: int) -> Path:
+        """Return a path for the requested index."""
+        return self._files[idx]
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, int]:
+        """Get one item from dataset."""
+        with Image.open(self._get_item_path(idx)).convert("RGB") as img:
+            l_batch, ab_batch = self._prepare_images([img])
+
+            if self._device == torch.device("cpu"):
+                return (
+                    l_batch[0],
+                    ab_batch[0],
+                    self.label_number_by_path(self._files[idx]),
+                )
+
+            return (
+                l_batch[0].to(self._device, non_blocking=True),
+                ab_batch[0].to(self._device, non_blocking=True),
+                self.label_number_by_path(self._files[idx]),
             )

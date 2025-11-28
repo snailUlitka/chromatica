@@ -50,6 +50,13 @@ def test_list_endpoints(api_client: TestClient) -> None:
     assert models.status_code == 200
     assert set(models.json()["models"]) == {"u_net_v1", "u_net_v2"}
 
+    defaults = api_client.get("/train/config")
+    assert defaults.status_code == 200
+    config = defaults.json()["config"]
+    assert config["epochs"] == 2
+    assert config["batch_size"] == 4
+    assert "learning_rate" in config
+
 
 @pytest.mark.continues
 def test_train_and_predict(api_client: TestClient) -> None:
@@ -63,7 +70,14 @@ def test_train_and_predict(api_client: TestClient) -> None:
     model_id = response.json()["model_id"]
 
     trained = _wait_for_model(api_client, model_id)
-    assert trained["metrics"]["history"]
+    history = trained["metrics"]["history"]
+    assert history["epochs"]
+    assert history["config"]["epochs"] >= 1
+    assert trained["metrics"]["train_error"] >= 0
+    if trained["metrics"]["val_error"] is not None:
+        assert trained["metrics"]["val_error"] >= 0
+    if trained["metrics"]["delta_a"] is not None:
+        assert "mean" in trained["metrics"]["delta_a"]
     assert trained["status"] == "completed"
 
     predict_response = api_client.post(

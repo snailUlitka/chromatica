@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from typing import TYPE_CHECKING
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from chromatica.api.config import get_settings
 
@@ -55,8 +57,11 @@ def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Test
     sample_dataset = dataset_root / "demo"
     sample_dataset.mkdir()
 
-    # Lightweight binary so dataset bootstrapper has something to ingest.
-    sample_dataset.joinpath("image.png").write_bytes(b"\x89PNG\r\n")
+    for idx, color in enumerate(((120, 130, 140), (180, 50, 60), (90, 200, 40))):
+        image = Image.new("RGB", (32, 32), color)
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        sample_dataset.joinpath(f"demo_{idx}.png").write_bytes(buffer.getvalue())
 
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setenv("DATASETS_PATH", str(dataset_root))
