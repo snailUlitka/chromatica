@@ -17,11 +17,6 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session
 
-DEFAULT_DATASETS = (
-    {"code": "COCO", "title": "COCO", "notes": None},
-    {"code": "FOOD101", "title": "Food-101", "notes": None},
-)
-
 DEFAULT_ARCHITECTURES = (
     {
         "code": "u_net_v1",
@@ -46,9 +41,8 @@ def _ensure_rows(
 
 
 def ensure_seed_records() -> None:
-    """Insert default datasets and architectures if they are missing."""
+    """Insert default architectures if they are missing."""
     with session_scope() as session:
-        _ensure_rows(session, Dataset, DEFAULT_DATASETS)
         _ensure_rows(session, Architecture, DEFAULT_ARCHITECTURES)
         session.commit()
 

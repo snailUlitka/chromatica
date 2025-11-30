@@ -43,8 +43,7 @@ def test_list_endpoints(api_client: TestClient) -> None:
     datasets = api_client.get("/datasets")
     assert datasets.status_code == 200
     dataset_codes = set(datasets.json()["datasets"])
-    assert {"COCO", "FOOD101"}.issubset(dataset_codes)
-    assert "demo" in dataset_codes
+    assert dataset_codes == {"demo"}
 
     models = api_client.get("/models")
     assert models.status_code == 200

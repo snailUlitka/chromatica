@@ -434,8 +434,11 @@ def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901, PLR09
     def list_datasets(
         session: Annotated[Session, Depends(get_db_session)],
     ) -> dict[str, list[str]]:
+        # Sync new folders into the DB, then expose only datasets that have a directory.
+        sync_datasets_from_disk(dataset_root)
         datasets = session.scalars(select(Dataset.code)).all()
-        return {"datasets": datasets}
+        available = [code for code in datasets if (dataset_root / code).is_dir()]
+        return {"datasets": available}
 
     @app.get("/models")
     def list_models(
