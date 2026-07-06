@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import logging
+import math
 import threading
 import uuid
 from collections.abc import Iterator  # noqa: TC003
@@ -17,7 +19,7 @@ import torch
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session  # noqa: TC002
 from torch import amp, nn
@@ -43,6 +45,34 @@ from chromatica.nn.loader import load_cnn_class
 
 if TYPE_CHECKING:
     from chromatica.nn.base import BaseCNN
+
+
+def _setup_logger() -> logging.Logger:
+    logger = logging.getLogger(__name__)
+    if logger.handlers:
+        return logger
+
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    if uvicorn_logger.handlers:
+        logger.handlers = uvicorn_logger.handlers
+        logger.setLevel(uvicorn_logger.level)
+    else:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    logger.propagate = False
+    return logger
+
+
+logger = _setup_logger()
+
+
+def _log_info(message: str, *args: Any) -> None:
+    """Log info-level messages and flush handlers to stream immediately."""
+    logger.info(message, *args)
+    for handler in logger.handlers:
+        handler.flush()
 
 
 class AvailableModels(str):
@@ -72,7 +102,7 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(4, ge=1, le=64)
     learning_rate: float = Field(1e-3, gt=0.0)
     val_split: float = Field(0.2, ge=0.0, lt=1.0)
-    num_workers: int = Field(0, ge=0, le=8)
+    num_workers: int = Field(4, ge=0, le=8)
     seed: int = 42
     use_amp: bool | None = None
     max_train_batches: int | None = Field(
@@ -104,6 +134,34 @@ class TrainingRequest(BaseModel):
     dataset: str
     model: str
     config: TrainingConfig = Field(default_factory=TrainingConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _merge_flat_config(cls, data: Any) -> Any:
+        """Fold top-level hyperparameters into the nested config block.
+
+        The frontend posts training params alongside dataset/model instead of
+        under a `config` key. Allow both shapes by merging known hyperparameter
+        fields into the config payload before validation.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        payload = dict(data)
+        config_data = payload.get("config") or {}
+        if not isinstance(config_data, dict):
+            config_data = dict(config_data)
+
+        hyperparams = {
+            key: payload.pop(key)
+            for key in list(payload)
+            if key in TrainingConfig.model_fields
+        }
+        if hyperparams:
+            payload["config"] = {**config_data, **hyperparams}
+        elif "config" in payload:
+            payload["config"] = config_data
+        return payload
 
 
 class TrainingMetrics(BaseModel):
@@ -177,9 +235,13 @@ def _build_dataloaders(
     return train_loader, val_loader
 
 
-def _train_model(  # noqa: PLR0915
-    model: AvailableModels, dataset_path: Path, config: TrainingConfig
+def _train_model(  # noqa: C901, PLR0912, PLR0915
+    model: AvailableModels,
+    dataset_path: Path,
+    config: TrainingConfig,
+    run_id: str | None = None,
 ) -> tuple[BaseCNN, TrainingMetrics]:
+    run_label = f"[train:{run_id}]" if run_id else "[train]"
     torch.manual_seed(config.seed)
     device = _select_device()
     net = _create_model(model).to(device)
@@ -192,11 +254,38 @@ def _train_model(  # noqa: PLR0915
     ) and device.type == "cuda"
     scaler = amp.GradScaler("cuda") if use_amp else None
 
+    train_size = len(train_loader.dataset)
+    val_size = len(val_loader.dataset) if val_loader else 0
+    total_batches = len(train_loader)
+    if config.max_train_batches:
+        total_batches = min(total_batches, config.max_train_batches)
+    total_steps = total_batches * config.epochs
+    progress_marks = [0.25, 0.5, 0.75, 1.0]
+    progress_steps = [max(1, math.ceil(total_steps * mark)) for mark in progress_marks]
+    next_mark_idx = 0
+    _log_info(
+        "%s Starting training: model=%s dataset=%s device=%s epochs=%s "
+        "batch_size=%s train_samples=%s val_samples=%s max_train_batches=%s "
+        "max_val_batches=%s amp=%s",
+        run_label,
+        model,
+        dataset_path,
+        device,
+        config.epochs,
+        config.batch_size,
+        train_size,
+        val_size,
+        config.max_train_batches or "all",
+        config.max_val_batches or "all",
+        use_amp,
+    )
     history: list[EpochMetrics] = []
+    global_step = 0
     for epoch in range(1, config.epochs + 1):
         net.train()
         train_loss = 0.0
         train_batches = 0
+        val_batches = 0
         for batch_idx, (l_batch, ab_batch, _) in enumerate(train_loader, start=1):
             if config.max_train_batches and batch_idx > config.max_train_batches:
                 break
@@ -222,6 +311,23 @@ def _train_model(  # noqa: PLR0915
 
             train_loss += loss.item()
             train_batches += 1
+            global_step += 1
+            while (
+                next_mark_idx < len(progress_steps)
+                and global_step >= (progress_steps[next_mark_idx])
+            ):
+                progress_percent = int(progress_marks[next_mark_idx] * 100)
+                _log_info(
+                    "%s Progress %s%% (epoch %s/%s, batch %s/%s): train_loss=%.4f",
+                    run_label,
+                    progress_percent,
+                    epoch,
+                    config.epochs,
+                    batch_idx,
+                    total_batches,
+                    train_loss / max(train_batches, 1),
+                )
+                next_mark_idx += 1
 
         train_loss = train_loss / max(train_batches, 1)
 
@@ -229,7 +335,6 @@ def _train_model(  # noqa: PLR0915
         if val_loader is not None:
             net.eval()
             running_val = 0.0
-            val_batches = 0
             with torch.inference_mode():
                 for batch_idx, (l_batch, ab_batch, _) in enumerate(val_loader, start=1):
                     if config.max_val_batches and batch_idx > config.max_val_batches:
@@ -245,6 +350,24 @@ def _train_model(  # noqa: PLR0915
         history.append(
             EpochMetrics(epoch=epoch, train_loss=train_loss, val_loss=val_loss)
         )
+        progress_fraction = epoch / config.epochs
+        while next_mark_idx < len(progress_marks) and progress_fraction >= (
+            progress_marks[next_mark_idx] - 1e-9
+        ):
+            progress_percent = int(progress_marks[next_mark_idx] * 100)
+            _log_info(
+                "%s Progress %s%% (epoch %s/%s): train_loss=%.4f "
+                "%s batches(train=%s,val=%s)",
+                run_label,
+                progress_percent,
+                epoch,
+                config.epochs,
+                train_loss,
+                (f"val_loss={val_loss:.4f}" if val_loss is not None else "val_loss=NA"),
+                train_batches,
+                val_batches if val_loader is not None else 0,
+            )
+            next_mark_idx += 1
 
     delta_metrics = None
     if val_loader is not None:
@@ -375,7 +498,18 @@ def _train_and_persist(
 ) -> None:
     """Run training in a background thread and persist record changes."""
     try:
-        model, metrics = _train_model(architecture, dataset_path, config)
+        _log_info(
+            "Training run %s started: model=%s dataset=%s",
+            model_id,
+            architecture,
+            dataset_path,
+        )
+        model, metrics = _train_model(
+            architecture, dataset_path, config, run_id=model_id
+        )
+        _log_info(
+            "Training run %s finished; persisting weights to %s", model_id, model_store
+        )
         model_store.mkdir(parents=True, exist_ok=True)
         model_path = model_store / f"{model_id}.pt"
         torch.save(model.state_dict(), model_path)
@@ -399,7 +533,8 @@ def _train_and_persist(
                     "delta_a": metrics.delta_a,
                 },
             )
-    except Exception as exc:  # pragma: no cover - defensive branch  # noqa: BLE001
+    except Exception as exc:  # pragma: no cover - defensive branch
+        logger.exception("Training run %s failed", model_id)
         with session_scope() as session:
             record = session.get(TrainedModel, model_id)
             if record is None:
@@ -473,6 +608,14 @@ def build_app(settings: Settings | None = None) -> FastAPI:  # noqa: C901, PLR09
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+        _log_info(
+            "Scheduling training run %s: dataset=%s model=%s epochs=%s batch_size=%s",
+            model_id,
+            dataset.code,
+            architecture.code,
+            request.config.epochs,
+            request.config.batch_size,
+        )
         record = TrainedModel(
             id=model_id,
             dataset_id=dataset.id,

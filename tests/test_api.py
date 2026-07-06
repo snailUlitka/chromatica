@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 import pytest
 from PIL import Image
 
+from chromatica.api.app import TrainingRequest
+
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
 
@@ -55,6 +57,27 @@ def test_list_endpoints(api_client: TestClient) -> None:
     assert config["epochs"] == 2
     assert config["batch_size"] == 4
     assert "learning_rate" in config
+
+
+def test_training_request_accepts_flat_hyperparams() -> None:
+    """Frontend-style payloads populate the nested training config."""
+    payload = {
+        "dataset": "demo",
+        "model": "u_net_v1",
+        "epochs": 1,
+        "batch_size": 32,
+        "learning_rate": 0.0012,
+        "val_split": 0.2,
+    }
+
+    request = TrainingRequest.model_validate(payload)
+
+    assert request.dataset == "demo"
+    assert request.model == "u_net_v1"
+    assert request.config.epochs == 1
+    assert request.config.batch_size == 32
+    assert request.config.learning_rate == 0.0012
+    assert request.config.val_split == 0.2
 
 
 @pytest.mark.continues
