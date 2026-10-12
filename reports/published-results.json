@@ -1,0 +1,71 @@
+{
+  "kind": "historical_publication_transcription",
+  "status": "published_not_revalidated",
+  "transcribed_at": "2026-10-12",
+  "revalidated_with_current_code": false,
+  "sources": {
+    "cnn": {
+      "bibliography_key": "polevoda_lezina_cnn_colorization_2025",
+      "title": "Исследование применения свёрточных нейронных сетей для решения задачи колоризации изображений",
+      "url": "https://college.cfuv.ru/wp-content/uploads/2025/05/sbornik-czsm-2025.pdf",
+      "source_pdf_sha256": "a621fb9331e6a9ce1926fc0b220d823a3e08660265a96351cf2ef6e2fb1c7e56",
+      "printed_pages": [1739, 1740, 1741, 1742, 1743],
+      "metric_page": 1742
+    },
+    "unet": {
+      "bibliography_key": "polevoda_lezina_unet_colorization_2025",
+      "title": "Применение нейронной сети U-Net и её модификаций для решения задачи колоризации изображений",
+      "url": "https://cat.gpntb.ru/?id=EC%2FShowFull&irbDb=I128F&mfn=52111",
+      "source_pdf_sha256": "5a99628a8ec121342f7172f4621c169e221fc5ecfab10962ce426a6ee06ba834",
+      "printed_pages": [282, 283, 284, 285, 286, 287, 288],
+      "pdf_note": "Verified against the author's PDF attachment, containing the paper and proceedings front/end matter."
+    },
+    "diversity": {
+      "bibliography_key": "polevoda_lezina_color_diversity_2025",
+      "title": "Исследование цветового разнообразия в изображениях и моделях колоризации",
+      "url": "https://expose.gpntbsib.ru/expose/elektronnye-materialy-nauchnyh-meropriyatiy-popolnenie-bazy-dannyh-nauchnye-meropriyatiya-ran-mart-2026-g.-686ea540/book/27-506801874",
+      "source_pdf_sha256": "ccd85639c9f0d5dd5447fda92acccc800307aac486125df128d6499dd4a6d574",
+      "printed_page": 68,
+      "pdf_note": "Verified visually against the author's PDF attachment; its Cyrillic text extraction is corrupted."
+    }
+  },
+  "mse_summary": [
+    {"source": "cnn", "page": 1742, "model": "Initial network without skips", "dataset_scope": "Food-101 pizza-only experiment", "epochs": null, "test_images": 250, "mse_as_printed": "approximately 0.0159"},
+    {"source": "unet", "page": 283, "model": "Network 1: without skips", "dataset_scope": "Food-101, 10 classes", "epochs": 15, "test_images": null, "mse_as_printed": "0.01313"},
+    {"source": "unet", "page": 285, "model": "Network 2: with skips", "dataset_scope": "Food-101, 10 classes", "epochs": 15, "test_images": null, "mse_as_printed": "0.0126"},
+    {"source": "unet", "page": 286, "model": "Network 3: skips + simulated classifier", "dataset_scope": "Food-101, 10 classes", "epochs": 15, "test_images": null, "mse_as_printed": "0.01265"}
+  ],
+  "per_class_mse": [
+    {"class": "greek_salad", "without_skips": "0.01556", "with_skips": "0.01541", "simulated_classifier": "0.01523"},
+    {"class": "risotto", "without_skips": "0.01041", "with_skips": "0.01078", "simulated_classifier": "0.01136"},
+    {"class": "pizza", "without_skips": "0.01557", "with_skips": "0.01455", "simulated_classifier": "0.01508"},
+    {"class": "apple_pie", "without_skips": "0.01251", "with_skips": "0.01124", "simulated_classifier": "0.01173"},
+    {"class": "pancakes", "without_skips": "0.01171", "with_skips": "0.01131", "simulated_classifier": "0.01212"},
+    {"class": "lasagna", "without_skips": "0.01287", "with_skips": "0.01235", "simulated_classifier": "0.01206"},
+    {"class": "creme_brulee", "without_skips": "0.01374", "with_skips": "0.01287", "simulated_classifier": "0.01316"},
+    {"class": "waffles", "without_skips": "0.01180", "with_skips": "0.01153", "simulated_classifier": "0.01206"},
+    {"class": "pho", "without_skips": "0.01426", "with_skips": "0.01388", "simulated_classifier": "0.01139"},
+    {"class": "spaghetti_bolognese", "without_skips": "0.01285", "with_skips": "0.01207", "simulated_classifier": "0.01227"}
+  ],
+  "per_class_source_pages": {"without_skips": [283], "with_skips": [284, 285], "simulated_classifier": [285, 286]},
+  "diversity_summary": [
+    {"quantity": "Original red-sector pixel fraction", "as_printed": "approximately 0.269"},
+    {"quantity": "Prediction red-sector pixel fraction (one model)", "as_printed": "approximately 0.314"},
+    {"quantity": "Prediction minus original red-sector fraction", "as_printed": "approximately 0.045"},
+    {"quantity": "Prediction/original red-sector fraction ratio", "as_printed": "approximately 1.17"},
+    {"quantity": "Mean signed delta-a* range", "as_printed": "-1.29 to -0.97"},
+    {"quantity": "Median signed delta-a* range", "as_printed": "-0.54 to -0.32"}
+  ],
+  "limitations": [
+    "Values are transcribed from publications, not outputs of the current code; retain the published precision and averages.",
+    "Historical datasets, checkpoints, seeds, manifests, per-run attribution, and detailed reductions cannot be recovered.",
+    "MSE uses the publication's Lab representation; its exact normalization and reduction have not been established for comparison with current normalized_mse or physical Lab metrics.",
+    "The third network uses simulated class information (0.91 for the true class, 0.01 for each other class), not a learned classifier; it is not implemented in the current package.",
+    "The abstract discusses both Food-101 and COCO but does not assign each numerical example to a dataset/checkpoint; do not populate the current four-run matrix from these values.",
+    "The abstract describes a red wedge about 30 degrees wide around zero; its thresholds and width convention cannot be matched to the current metric settings.",
+    "Negative signed delta-a* under prediction-minus-target denotes a greenward component shift; it alone does not establish increased redness. The abstract's warm-bias interpretation also uses hue fractions.",
+    "Historical hue pairing and Lab decoding are not revalidated after the current fixes. These numbers cannot be treated as physical-lab-v1 measurements.",
+    "The preserved architectures differ in output activation as well as skip connections; reported MSE differences do not isolate a skip-connection effect.",
+    "No standard deviations, confidence intervals, current MAE/RMSE, or new results are inferred from the papers."
+  ]
+}

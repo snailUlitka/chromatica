@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chromatica — published results (2025)</title>
+<style>
+body{font:16px/1.55 system-ui,sans-serif;color:#18243b;background:#f6f8fc;
+max-width:1100px;margin:40px auto;padding:0 24px}h1{font-size:36px}h2{margin-top:36px}
+.status{padding:20px;border-left:4px solid #b45309;background:#fff7ed}
+.scroll{overflow:auto}table{border-collapse:collapse;width:100%;background:white}
+th,td{padding:12px;border:1px solid #d8dfeb;text-align:left}th{background:#eaf0f8}
+li{margin:12px 0}code{overflow-wrap:anywhere;font-size:13px}a{color:#1554a5}
+</style></head><body>
+<h1>Published results (2025)</h1>
+<p class="status">Historical results from the author&#x27;s 2025 publications. These tables are transcriptions, not a new experiment or a verification of the corrected implementation. Historical ClearML datasets, weights, and raw outputs are lost. No training, evaluation, notebook execution, runtime tests, or build was performed for this revision. New experiments are outside its scope.</p>
+<h2>Published MSE summary</h2><div class="scroll"><table><thead><tr>
+<th scope="col">Published model</th><th scope="col">Data scope</th><th scope="col">Reported MSE</th><th scope="col">Printed page</th>
+</tr></thead><tbody>
+<tr><td>Initial network without skips</td><td>Food-101 pizza-only experiment</td><td>approximately 0.0159</td><td>1742</td></tr>
+<tr><td>Network 1: without skips</td><td>Food-101, 10 classes</td><td>0.01313</td><td>283</td></tr>
+<tr><td>Network 2: with skips</td><td>Food-101, 10 classes</td><td>0.0126</td><td>285</td></tr>
+<tr><td>Network 3: skips + simulated classifier</td><td>Food-101, 10 classes</td><td>0.01265</td><td>286</td></tr>
+</tbody></table></div>
+<p>The April paper reports the approximately 0.0159 MSE on 250 test images (p. 1742); its training description gives a pizza-only initial stage (p. 1741). The June U-Net paper describes the earlier experiment as pizza-only training and testing, with 200 epochs (p. 283). The April paper itself does not state the epoch count. The exact MSE scaling/reduction and checkpoint identities remain unavailable.</p>
+<h2>Per-class MSE (U-Net paper)</h2><div class="scroll"><table><thead><tr>
+<th scope="col">Food-101 class</th><th scope="col">Without skips</th><th scope="col">With skips</th><th scope="col">Simulated classifier</th>
+</tr></thead><tbody>
+<tr><td>greek_salad</td><td>0.01556</td><td>0.01541</td><td>0.01523</td></tr>
+<tr><td>risotto</td><td>0.01041</td><td>0.01078</td><td>0.01136</td></tr>
+<tr><td>pizza</td><td>0.01557</td><td>0.01455</td><td>0.01508</td></tr>
+<tr><td>apple_pie</td><td>0.01251</td><td>0.01124</td><td>0.01173</td></tr>
+<tr><td>pancakes</td><td>0.01171</td><td>0.01131</td><td>0.01212</td></tr>
+<tr><td>lasagna</td><td>0.01287</td><td>0.01235</td><td>0.01206</td></tr>
+<tr><td>creme_brulee</td><td>0.01374</td><td>0.01287</td><td>0.01316</td></tr>
+<tr><td>waffles</td><td>0.01180</td><td>0.01153</td><td>0.01206</td></tr>
+<tr><td>pho</td><td>0.01426</td><td>0.01388</td><td>0.01139</td></tr>
+<tr><td>spaghetti_bolognese</td><td>0.01285</td><td>0.01207</td><td>0.01227</td></tr>
+</tbody></table></div>
+<p>Pages 283 (without skips), 284–285 (with skips), and 285–286 (simulated classifier). All three use ten classes and 15 epochs. The simulated classifier supplies 0.91 for the true class and 0.01 for each other class. Published means and precision are retained; no averages or significance estimates are recomputed here.</p>
+<h2>Color-diversity abstract (p. 68)</h2><div class="scroll"><table><thead><tr>
+<th scope="col">Quantity</th><th scope="col">Value as published</th>
+</tr></thead><tbody>
+<tr><td>Original red-sector pixel fraction</td><td>approximately 0.269</td></tr>
+<tr><td>Prediction red-sector pixel fraction (one model)</td><td>approximately 0.314</td></tr>
+<tr><td>Prediction minus original red-sector fraction</td><td>approximately 0.045</td></tr>
+<tr><td>Prediction/original red-sector fraction ratio</td><td>approximately 1.17</td></tr>
+<tr><td>Mean signed delta-a* range</td><td>-1.29 to -0.97</td></tr>
+<tr><td>Median signed delta-a* range</td><td>-0.54 to -0.32</td></tr>
+</tbody></table></div>
+<p>The abstract discusses Food-101 and COCO, but does not assign these values to individual dataset/checkpoint pairs. Its red wedge is described as about 30 degrees wide around hue zero. Its stated conclusion is that a warm input bias is reproduced and amplified by the models. Treat this as a published interpretation, subject to the limitations below. Negative prediction-minus-target delta-a* alone is a greenward component shift and cannot establish an increase in redness.</p>
+<h2>Provenance and limitations</h2><ul>
+<li>Values are transcribed from publications, not outputs of the current code; retain the published precision and averages.</li>
+<li>Historical datasets, checkpoints, seeds, manifests, per-run attribution, and detailed reductions cannot be recovered.</li>
+<li>MSE uses the publication&#x27;s Lab representation; its exact normalization and reduction have not been established for comparison with current normalized_mse or physical Lab metrics.</li>
+<li>The third network uses simulated class information (0.91 for the true class, 0.01 for each other class), not a learned classifier; it is not implemented in the current package.</li>
+<li>The abstract discusses both Food-101 and COCO but does not assign each numerical example to a dataset/checkpoint; do not populate the current four-run matrix from these values.</li>
+<li>The abstract describes a red wedge about 30 degrees wide around zero; its thresholds and width convention cannot be matched to the current metric settings.</li>
+<li>Negative signed delta-a* under prediction-minus-target denotes a greenward component shift; it alone does not establish increased redness. The abstract&#x27;s warm-bias interpretation also uses hue fractions.</li>
+<li>Historical hue pairing and Lab decoding are not revalidated after the current fixes. These numbers cannot be treated as physical-lab-v1 measurements.</li>
+<li>The preserved architectures differ in output activation as well as skip connections; reported MSE differences do not isolate a skip-connection effect.</li>
+<li>No standard deviations, confidence intervals, current MAE/RMSE, or new results are inferred from the papers.</li>
+</ul>
+<h2>Sources</h2><ul>
+<li><a href="https://college.cfuv.ru/wp-content/uploads/2025/05/sbornik-czsm-2025.pdf">Исследование применения свёрточных нейронных сетей для решения задачи колоризации изображений</a><br>Inspected PDF SHA256: <code>a621fb9331e6a9ce1926fc0b220d823a3e08660265a96351cf2ef6e2fb1c7e56</code></li>
+<li><a href="https://cat.gpntb.ru/?id=EC%2FShowFull&amp;irbDb=I128F&amp;mfn=52111">Применение нейронной сети U-Net и её модификаций для решения задачи колоризации изображений</a><br>Inspected PDF SHA256: <code>5a99628a8ec121342f7172f4621c169e221fc5ecfab10962ce426a6ee06ba834</code></li>
+<li><a href="https://expose.gpntbsib.ru/expose/elektronnye-materialy-nauchnyh-meropriyatiy-popolnenie-bazy-dannyh-nauchnye-meropriyatiya-ran-mart-2026-g.-686ea540/book/27-506801874">Исследование цветового разнообразия в изображениях и моделях колоризации</a><br>Inspected PDF SHA256: <code>ccd85639c9f0d5dd5447fda92acccc800307aac486125df128d6499dd4a6d574</code></li>
+</ul><p><a href="published-results.json">Structured transcription and provenance</a> · <a href="published-results.md">Markdown report</a></p>
+</body></html>

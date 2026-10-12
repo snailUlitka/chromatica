@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Please cite this software when using its code; cite related papers separately."
+type: software
+title: Chromatica
+authors:
+  - family-names: Polevoda
+    given-names: Mikhail
+repository-code: "https://github.com/snailUlitka/chromatica"
+url: "https://github.com/snailUlitka/chromatica"
+license: MIT
+abstract: >-
+  Research code for image colorization, architecture comparison, and physical
+  CIE-Lab color distribution and directional bias analysis.
+keywords:
+  - image colorization
+  - color distributions
+  - PyTorch
+  - CIE-Lab

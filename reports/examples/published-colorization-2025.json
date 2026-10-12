@@ -1,0 +1,28 @@
+{
+  "kind": "historical_publication_figure",
+  "asset": "published-colorization-2025.png",
+  "asset_sha256": "1ff870ab726bedbe8f0dfb68ca613a1c2db193713ebf793a83256a0aeeadeb23",
+  "source_title": "Исследование применения свёрточных нейронных сетей для решения задачи колоризации изображений",
+  "authors": ["М. А. Полевода", "И. В. Лёзина"],
+  "year": 2025,
+  "bibliography_key": "polevoda_lezina_cnn_colorization_2025",
+  "source_url": "https://college.cfuv.ru/wp-content/uploads/2025/05/sbornik-czsm-2025.pdf",
+  "source_pdf_sha256": "a621fb9331e6a9ce1926fc0b220d823a3e08660265a96351cf2ef6e2fb1c7e56",
+  "pdf_page": 1742,
+  "printed_page": 1742,
+  "figure": 2,
+  "extracted_at": "2026-10-08",
+  "extraction": {
+    "method": "PDF region rendering with Poppler pdftoppm; no model execution",
+    "dpi": 144,
+    "crop_pixels": {"x": 218, "y": 272, "width": 770, "height": 386}
+  },
+  "panels": {"left": "original RGB photograph", "right": "historical model colorization"},
+  "training_data_description": "Food101; paper discusses an initial pizza-only training stage",
+  "source_image_id": null,
+  "source_image_sha256": null,
+  "checkpoint_sha256": null,
+  "run_configuration": null,
+  "revalidated_with_current_code": false,
+  "license": "Source publication and image terms apply; the repository MIT code license does not relicense this excerpt."
+}
