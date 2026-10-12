@@ -1,0 +1,38 @@
+name: Research package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.8"
+          enable-cache: true
+      - name: Install CPU package and development tools
+        run: uv sync --locked --extra cpu --group dev
+      - name: Check formatting and lint
+        run: |
+          uv run --no-sync ruff format --check src tests scripts notebooks
+          uv run --no-sync ruff check src tests scripts notebooks
+      - name: Run deterministic CPU tests
+        run: uv run --no-sync pytest tests
+      - name: Build distributions and install wheel
+        run: |
+          uv build
+          uv pip install --python .venv/bin/python --force-reinstall --no-deps dist/chromatica-0.0.0-py3-none-any.whl
+          uv run --no-sync python -c "import chromatica.config, chromatica.datasets, chromatica.models, chromatica.training, chromatica.evaluation"

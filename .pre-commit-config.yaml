@@ -27,18 +27,13 @@ repos:
         args: ["--maxkb=100"]
         exclude: |
           (?x)^(
-            ^exports/|
-            ^uv.lock
-          )$
+            exports/|
+            uv\.lock$|
+            reports/(examples|figures)/
+          )
       - id: check-docstring-first
       - id: detect-private-key
       - id: check-case-conflict
-
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.11
-    hooks:
-      - id: ruff
-      - id: ruff-format
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.8
@@ -47,6 +42,16 @@ repos:
 
   - repo: local
     hooks:
+      - id: ruff-check
+        name: ruff-check
+        entry: uv run ruff check
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff-format
+        entry: uv run ruff format --check
+        language: system
+        types: [python]
       - id: git-commit-prefix
         name: git-commit-prefix
         entry: uv run --active scripts/github_commit_prefix.py
