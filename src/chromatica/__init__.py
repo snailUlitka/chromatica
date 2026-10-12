@@ -1,6 +1,1 @@
-"""
-Chromatica is CNN for colorization images.
-
-For more details, visit: https://github.com/snailUlitka/chromatica
-Aurhor: snailUlitka <snail1704@gmail.com>
-"""
+"""Image colorization research, offline evaluation, and physical Lab metrics."""

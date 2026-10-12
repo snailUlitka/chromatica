@@ -1,2 +1,4 @@
-#!/bin/bash
-uv run jupyter lab --browser="open -a /Applications/Google\\ Chrome.app %s"
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+exec uv run --no-sync jupyter lab "$@"

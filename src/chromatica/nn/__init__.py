@@ -1,21 +1,8 @@
-"""Different versions submodules for NN staff."""
+"""Compatibility imports; new experiments use chromatica.models."""
 
-from __future__ import annotations
+from chromatica.models import BaseCNN
+from chromatica.models.loader import load_cnn_class as load_cnn
 
-import os
+DEFAULT_VERSION = "v2"
 
-from .base import BaseCNN
-from .loader import load_cnn_class as _load_cnn_class
-
-__all__ = [
-    "DEFAULT_VERSION",
-    "BaseCNN",
-    "load_cnn",
-]
-
-DEFAULT_VERSION = os.getenv("CHROMATICA_MODEL_VERSION", "v2")
-
-
-def load_cnn(version: str) -> type[BaseCNN]:
-    """Load model by version from `chromatica.nn.{version}.cnn.CNN`."""
-    return _load_cnn_class(version)
+__all__ = ["DEFAULT_VERSION", "BaseCNN", "load_cnn"]
